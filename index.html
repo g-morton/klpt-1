@@ -1,1 +1,100 @@
-Hello world
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kindergarten Learning Progressions Toolkit</title>
+  <meta name="theme-color" content="#f9f6f3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="KLPT">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+  <link rel="icon" href="assets/images/klpt-logo-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/images/klpt-logo-icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="home" data-step="domains">
+  <main class="page-shell">
+    <section class="device-frame" aria-label="Start a new observation">
+      <div class="screen">
+        <header class="topbar">
+          <div class="brand">
+            <img
+              class="brand__logo"
+              src="assets/images/klpt-logo-icon.svg"
+              alt="Kindergarten Learning Progressions Toolkit"
+            >
+            <div class="brand__copy">
+              <h1>Kindergarten Learning Progressions Toolkit</h1>
+              <a class="brand__site-link" href="https://earlychildhood.qld.gov.au/" target="_blank" rel="noopener noreferrer">
+                Earlychildhood.qld.gov.au
+              </a>
+            </div>
+          </div>
+          <button class="menu-button" type="button" aria-label="Open menu">
+            <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="view-stage">
+          <section class="app-view app-view--home">
+            <section class="hero">
+              <a class="hero__orb" href="observation.html" aria-label="Start a new observation">
+                <img
+                  class="hero__logo-circle"
+                  src="assets/images/klpt-logo-circle.svg"
+                  alt=""
+                >
+                <div class="hero__core">
+                  <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                </div>
+              </a>
+
+              <div class="hero__text">
+                <h2>Start a new observation</h2>
+                <p>Begin making observations for your classroom.</p>
+              </div>
+            </section>
+
+            <section class="sessions" aria-labelledby="sessions-title">
+              <div class="sessions__header">
+                <h3 id="sessions-title">Previous Sessions</h3>
+              </div>
+              <div class="sessions__list" id="sessions-list"></div>
+            </section>
+          </section>
+        </div>
+
+        <section class="action-panel">
+          <img
+            class="action-panel__helper"
+            src="assets/images/helper-1.svg"
+            alt=""
+            aria-hidden="true"
+          >
+
+          <article class="tip-card">
+            <div class="tip-card__icon" aria-hidden="true">
+              <i class="fa-regular fa-lightbulb"></i>
+            </div>
+            <div class="tip-card__content">
+              <p class="tip-card__eyebrow">Helpful Tip</p>
+              <p class="tip-card__title"></p>
+              <p class="tip-card__body"></p>
+            </div>
+          </article>
+
+          <div class="cta-wrap">
+            <button class="start-button" type="button">
+              <span class="start-button__tick" aria-hidden="true">✓</span>
+              <span>Start</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>

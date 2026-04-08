@@ -1,0 +1,45 @@
+{
+  "default": {
+    "title": "Helpful Tip",
+    "body": "Use the guidance on each page to move through your observation with confidence.",
+    "icon": "lightbulb"
+  },
+  "steps": [
+    {
+      "id": "domains",
+      "title": "Choose a domain",
+      "body": "Start by selecting the broad learning area that best matches what you observed.",
+      "icon": "lightbulb"
+    },
+    {
+      "id": "subdomains",
+      "title": "Refine the focus",
+      "body": "Pick the subdomain that gives the clearest match for the child’s learning context.",
+      "icon": "lightbulb"
+    },
+    {
+      "id": "elements",
+      "title": "Select an element",
+      "body": "Choose the element that most closely reflects the specific skill, behaviour, or capability you noticed.",
+      "icon": "lightbulb"
+    },
+    {
+      "id": "behaviours",
+      "title": "Match the behaviour",
+      "body": "Compare the listed behaviours and select the one that best represents the child’s current progress.",
+      "icon": "lightbulb"
+    },
+    {
+      "id": "statement",
+      "title": "Capture the observation",
+      "body": "Complete the statement with concise notes that describe what the child did, said, or demonstrated.",
+      "icon": "lightbulb"
+    },
+    {
+      "id": "review",
+      "title": "Review before saving",
+      "body": "Check the selected pathway and notes to make sure the observation is accurate and ready to keep or export.",
+      "icon": "lightbulb"
+    }
+  ]
+}

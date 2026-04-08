@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Observation | Kindergarten Learning Progressions Toolkit</title>
+  <meta name="theme-color" content="#f9f6f3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="KLPT">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+  <link rel="icon" href="assets/images/klpt-logo-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/images/klpt-logo-icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="observation" data-step="domains">
+  <main class="page-shell">
+    <section class="device-frame" aria-label="New observation">
+      <div class="screen">
+        <div class="view-stage">
+          <section class="app-view app-view--observation">
+            <div class="observation-shell">
+              <header class="observation-topbar">
+                <div class="observation-context">
+                  <a class="back-button" href="index.html" aria-label="Back to home">
+                    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                  </a>
+                  <h1 class="observation-context__title" id="observation-context-title">New observation</h1>
+                </div>
+                <div class="observation-progress">
+                  <p class="observation-progress__label" id="progress-label">Step 1 of 6</p>
+                  <div class="stepper" id="stepper" aria-label="Observation progress"></div>
+                </div>
+              </header>
+
+              <section class="observation-intro" aria-labelledby="placeholder-title">
+                <h2 id="placeholder-title">Start a new observation</h2>
+                <p id="placeholder-copy">Begin by optionally adding the child&apos;s name, then choose the domain that best matches what you observed.</p>
+              </section>
+
+              <section class="observation-placeholder" aria-labelledby="placeholder-title">
+
+                <label class="child-name-field" for="child-name-input">
+                  <input
+                    class="child-name-field__input"
+                    id="child-name-input"
+                    name="childName"
+                    type="text"
+                    inputmode="text"
+                    autocomplete="name"
+                    placeholder="Child&apos;s name (optional)"
+                  >
+                </label>
+
+                <section class="selection-group" aria-labelledby="domain-options-title">
+                  <div class="selection-group__header">
+                    <p class="selection-group__eyebrow">Step 1</p>
+                    <h3 id="domain-options-title">Choose a domain</h3>
+                  </div>
+                  <div class="selection-list" id="domain-options"></div>
+                </section>
+              </section>
+            </div>
+          </section>
+        </div>
+
+        <section class="action-panel">
+          <img
+            class="action-panel__helper"
+            src="assets/images/helper-1.svg"
+            alt=""
+            aria-hidden="true"
+          >
+
+          <article class="tip-card">
+            <div class="tip-card__icon" aria-hidden="true">
+              <i class="fa-regular fa-lightbulb"></i>
+            </div>
+            <div class="tip-card__content">
+              <p class="tip-card__eyebrow">Helpful Tip</p>
+              <p class="tip-card__title"></p>
+              <p class="tip-card__body"></p>
+            </div>
+          </article>
+
+          <div class="cta-wrap">
+            <button class="start-button" id="next-step-button" type="button" hidden>
+              <span class="start-button__tick" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span>Next</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
