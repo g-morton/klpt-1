@@ -23,23 +23,22 @@
             <div class="observation-shell">
               <header class="observation-topbar">
                 <div class="observation-context">
-                  <a class="back-button" href="index.html" aria-label="Back to home">
+                  <button class="back-button" id="observation-back-button" type="button" aria-label="Go back">
                     <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
-                  </a>
+                  </button>
                   <h1 class="observation-context__title" id="observation-context-title">New observation</h1>
                 </div>
                 <div class="observation-progress">
-                  <p class="observation-progress__label" id="progress-label">Step 1 of 6</p>
+                  <p class="observation-progress__label" id="progress-label">Step</p>
                   <div class="stepper" id="stepper" aria-label="Observation progress"></div>
                 </div>
               </header>
 
-              <section class="observation-intro" aria-labelledby="placeholder-title">
-                <h2 id="placeholder-title">Start a new observation</h2>
-                <p id="placeholder-copy">Begin by optionally adding the child&apos;s name, then choose the domain that best matches what you observed.</p>
+              <section class="observation-intro" aria-label="Observation path">
+                <div class="observation-breadcrumbs" id="observation-breadcrumbs"></div>
               </section>
 
-              <section class="observation-placeholder" aria-labelledby="placeholder-title">
+              <section class="observation-placeholder" aria-labelledby="domain-options-title">
 
                 <label class="child-name-field" for="child-name-input">
                   <input
@@ -55,7 +54,6 @@
 
                 <section class="selection-group" aria-labelledby="domain-options-title">
                   <div class="selection-group__header">
-                    <p class="selection-group__eyebrow">Step 1</p>
                     <h3 id="domain-options-title">Choose a domain</h3>
                   </div>
                   <div class="selection-list" id="domain-options"></div>
@@ -86,7 +84,6 @@
 
           <div class="cta-wrap">
             <button class="start-button" id="next-step-button" type="button" hidden>
-              <span class="start-button__tick" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
               <span>Next</span>
             </button>
           </div>

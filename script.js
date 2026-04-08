@@ -6,11 +6,29 @@ const DRAFT_CHILD_NAME_KEY = "klpt-draft-child-name";
 const DRAFT_DOMAIN_KEY = "klpt-draft-domain";
 const DRAFT_SUBDOMAIN_KEY = "klpt-draft-subdomain";
 const DRAFT_ELEMENT_KEY = "klpt-draft-element";
+const DRAFT_BEHAVIOUR_KEY = "klpt-draft-behaviour";
 const DEFAULT_STEP_ID = "domains";
 const DOMAINS_DATA_PATH = "assets/data/domains.json";
 const NAVIGATION_DATA_PATH = "assets/data/navigation.json";
 const MAX_SESSIONS = 5;
-const FLOW_STEPS = ["domains", "subdomains", "elements"];
+const FLOW_STEPS = ["domains", "subdomains", "elements", "behaviours"];
+const STEP_ORDER = ["domains", "subdomains", "elements", "behaviours", "statement", "review"];
+const STEP_GRADIENTS = [
+  "linear-gradient(90deg, #4e9bd0 0%, #5aa8db 100%)",
+  "linear-gradient(90deg, #86c8ec 0%, #a6d8f2 100%)",
+  "linear-gradient(90deg, #84c96d 0%, #9fd88a 100%)",
+  "linear-gradient(90deg, #f0b15d 0%, #f39a57 100%)",
+  "linear-gradient(90deg, #db6f82 0%, #e58ea0 100%)",
+  "linear-gradient(90deg, #9b86d8 0%, #b6a5ea 100%)"
+];
+const STEP_HELPER_MAP = {
+  domains: "assets/images/helper-1.svg",
+  subdomains: "assets/images/helper-2.svg",
+  elements: "assets/images/helper-3.svg",
+  behaviours: "assets/images/helper-3.svg",
+  statement: "assets/images/helper-4.svg",
+  review: "assets/images/helper-5.svg"
+};
 let deleteModalEscapeHandler = null;
 
 function readLegacySessions() {
@@ -244,6 +262,35 @@ function getActiveStepId() {
 function setActiveStep(stepId) {
   document.body.dataset.step = stepId || DEFAULT_STEP_ID;
   localStorage.setItem(STEP_STORAGE_KEY, document.body.dataset.step);
+  updateHelperFigure(document.body.dataset.step);
+  syncChildNameVisibility(document.body.dataset.step);
+}
+
+function updateHelperFigure(stepId) {
+  const helper = document.querySelector(".action-panel__helper");
+  if (!helper) {
+    return;
+  }
+
+  const nextSrc = STEP_HELPER_MAP[stepId] || STEP_HELPER_MAP[DEFAULT_STEP_ID];
+  if (helper.getAttribute("src") === nextSrc) {
+    return;
+  }
+
+  helper.setAttribute("src", nextSrc);
+}
+
+function stepGradientFor(stepId) {
+  const index = STEP_ORDER.indexOf(stepId);
+  return STEP_GRADIENTS[index >= 0 ? index : 0];
+}
+
+function syncChildNameVisibility(stepId) {
+  const childNameField = document.querySelector(".child-name-field");
+  if (!childNameField) {
+    return;
+  }
+  childNameField.hidden = stepId !== "domains";
 }
 
 async function renderStepper() {
@@ -267,17 +314,7 @@ async function renderStepper() {
       const item = document.createElement("div");
       item.className = "stepper__item";
       item.dataset.stepId = step.id;
-      item.style.setProperty(
-        "--step-color",
-        [
-          "linear-gradient(90deg, #4e9bd0 0%, #5aa8db 100%)",
-          "linear-gradient(90deg, #86c8ec 0%, #a6d8f2 100%)",
-          "linear-gradient(90deg, #84c96d 0%, #9fd88a 100%)",
-          "linear-gradient(90deg, #f0b15d 0%, #f39a57 100%)",
-          "linear-gradient(90deg, #db6f82 0%, #e58ea0 100%)",
-          "linear-gradient(90deg, #9b86d8 0%, #b6a5ea 100%)"
-        ][index % 6]
-      );
+      item.style.setProperty("--step-color", STEP_GRADIENTS[index % STEP_GRADIENTS.length]);
 
       if (index < activeIndex) {
         item.classList.add("is-complete");
@@ -297,13 +334,13 @@ async function renderStepper() {
 
     stepper.replaceChildren(...items);
     if (progressLabel) {
-      progressLabel.textContent = `Step ${activeIndex + 1} of ${steps.length}`;
+      progressLabel.textContent = steps[activeIndex]?.title || "Step";
     }
   } catch (error) {
     console.warn("Unable to load navigation data:", error);
     stepper.replaceChildren();
     if (progressLabel) {
-      progressLabel.textContent = "Step 1";
+      progressLabel.textContent = "Step";
     }
   }
 }
@@ -346,9 +383,13 @@ const observationState = {
   layer: "domains",
   selectedDomainId: "",
   selectedSubDomainId: "",
-  selectedElementId: ""
+  selectedElementId: "",
+  focusedBehaviourId: "",
+  selectedBehaviourIds: []
 };
 let domainsCache = [];
+let behaviourCarouselIndex = 0;
+let behaviourIsSliding = false;
 
 function currentStepFromLayer(layer) {
   if (layer === "subdomains") {
@@ -357,10 +398,16 @@ function currentStepFromLayer(layer) {
   if (layer === "elements") {
     return "elements";
   }
+  if (layer === "behaviours") {
+    return "behaviours";
+  }
   return "domains";
 }
 
 function getSelectedEntityId() {
+  if (observationState.layer === "behaviours") {
+    return observationState.focusedBehaviourId;
+  }
   if (observationState.layer === "elements") {
     return observationState.selectedElementId;
   }
@@ -377,6 +424,14 @@ function updateNextButtonVisibility() {
   }
 
   const label = nextButton.querySelector("span:last-child");
+  if (observationState.layer === "behaviours") {
+    if (label) {
+      label.textContent = "Report";
+    }
+    nextButton.hidden = !observationState.selectedBehaviourIds.length;
+    return;
+  }
+
   if (label) {
     label.textContent = observationState.layer === "elements" ? "Continue" : "Next";
   }
@@ -399,24 +454,30 @@ function getSelectedSubDomain() {
 
 function buildOptionHint(layer, item) {
   if (layer === "domains") {
-    const subCount = Array.isArray(item.subDomains) ? item.subDomains.length : 0;
-    const elementCount = Array.isArray(item.elements) ? item.elements.length : 0;
-    if (subCount > 0) {
-      return `${subCount} focus area${subCount === 1 ? "" : "s"}`;
+    const hasSubDomains = Array.isArray(item.subDomains) && item.subDomains.length > 0;
+    if (hasSubDomains) {
+      return "Tap to explore focus areas";
     }
-    if (elementCount > 0) {
-      return `${elementCount} element${elementCount === 1 ? "" : "s"} available`;
-    }
-    return "Tap to explore";
+    return "Tap to explore elements";
   }
 
   if (layer === "subdomains") {
-    const elementCount = Array.isArray(item.elements) ? item.elements.length : 0;
-    return `${elementCount} element${elementCount === 1 ? "" : "s"}`;
+    return "Tap to view elements";
   }
 
-  const behaviourCount = Array.isArray(item.behaviours) ? item.behaviours.length : 0;
-  return `${behaviourCount} behaviour${behaviourCount === 1 ? "" : "s"}`;
+  return "Tap to view behaviour options";
+}
+
+function getSelectedElement() {
+  const subDomain = getSelectedSubDomain();
+  if (subDomain && Array.isArray(subDomain.elements)) {
+    return subDomain.elements.find((item) => item.id === observationState.selectedElementId) || null;
+  }
+  const domain = getSelectedDomain();
+  if (domain && Array.isArray(domain.elements)) {
+    return domain.elements.find((item) => item.id === observationState.selectedElementId) || null;
+  }
+  return null;
 }
 
 function createSelectionOption(layer, item, selectedId) {
@@ -440,28 +501,127 @@ function createSelectionOption(layer, item, selectedId) {
       <span class="selection-option__title">${item.name}</span>
       <span class="selection-option__hint">${buildOptionHint(layer, item)}</span>
     </span>
-    <span class="selection-option__chevron" aria-hidden="true">
-      <i class="fa-solid fa-angle-right"></i>
-    </span>
   `;
 
   return button;
 }
 
+function previewNames(items, count = 2) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return "";
+  }
+  return items
+    .slice(0, count)
+    .map((entry) => entry?.name)
+    .filter(Boolean)
+    .join(", ");
+}
+
+function stripHtml(value) {
+  if (!value) {
+    return "";
+  }
+  return String(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateText(value, maxLength = 240) {
+  if (!value || value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function firstSentence(value) {
+  const cleaned = stripHtml(value);
+  if (!cleaned) {
+    return "";
+  }
+  const match = cleaned.match(/(.+?[.!?])(?:\s|$)/);
+  return (match ? match[1] : cleaned).trim();
+}
+
+function buildOptionOverview(layer, item) {
+  if (!item) {
+    return "Tap next to continue through the observation flow.";
+  }
+
+  if (layer === "domains") {
+    const subDomains = Array.isArray(item.subDomains) ? item.subDomains : [];
+    const elements = Array.isArray(item.elements) ? item.elements : [];
+
+    if (subDomains.length > 0) {
+      const subPreview = previewNames(subDomains);
+      return subPreview
+        ? `Includes focus areas such as ${subPreview}.`
+        : "Includes multiple focus areas to guide selection.";
+    }
+
+    if (elements.length > 0) {
+      const elementPreview = previewNames(elements);
+      return elementPreview
+        ? `Includes elements such as ${elementPreview}.`
+        : "Includes a range of observable elements.";
+    }
+  }
+
+  if (layer === "subdomains") {
+    const elements = Array.isArray(item.elements) ? item.elements : [];
+    const elementPreview = previewNames(elements);
+    return elementPreview
+      ? `Covers elements such as ${elementPreview}.`
+      : "Covers a range of observable elements.";
+  }
+
+  if (layer === "elements") {
+    const behaviours = Array.isArray(item.behaviours) ? item.behaviours : [];
+    const behaviourPreview = previewNames(behaviours);
+    return behaviourPreview
+      ? `Includes behaviour levels such as ${behaviourPreview}.`
+      : "Includes behaviour levels to help pinpoint current learning.";
+  }
+
+  if (layer === "behaviours") {
+    return "Use the pin button to add this behaviour level to your observation.";
+  }
+
+  return stripHtml(item.summary || item.description) || "Tap next to continue through the observation flow.";
+}
+
 function updateTipFromSelection(layer, item) {
+  if (!item) {
+    return;
+  }
+
   const eyebrow = document.querySelector(".tip-card__eyebrow");
   const title = document.querySelector(".tip-card__title");
   const body = document.querySelector(".tip-card__body");
   const icon = document.querySelector(".tip-card__icon i");
 
   if (eyebrow) {
-    eyebrow.textContent = layer === "domains" ? "Selected Domain" : layer === "subdomains" ? "Selected Subdomain" : "Selected Element";
+    if (layer === "domains") {
+      eyebrow.textContent = "Selected Domain";
+    } else if (layer === "subdomains") {
+      eyebrow.textContent = "Selected Subdomain";
+    } else if (layer === "elements") {
+      eyebrow.textContent = "Selected Element";
+    } else {
+      eyebrow.textContent = "Selected Behaviour";
+    }
   }
   if (title) {
     title.textContent = item.name;
   }
   if (body) {
-    body.textContent = item.summary || item.description || "Tap next to continue through the observation flow.";
+    const details = stripHtml(item.summary || item.description);
+    const overview = buildOptionOverview(layer, item);
+    if (layer === "behaviours") {
+      body.textContent = details || overview;
+    } else {
+      body.textContent = details ? `${details} ${overview}` : overview;
+    }
   }
   if (icon) {
     icon.className = "fa-solid fa-circle-info";
@@ -471,25 +631,74 @@ function updateTipFromSelection(layer, item) {
 function updateSelectionHeader() {
   const eyebrow = document.querySelector(".selection-group__eyebrow");
   const title = document.getElementById("domain-options-title");
-  const intro = document.getElementById("placeholder-copy");
+  const childNameField = document.querySelector(".child-name-field");
 
-  if (!eyebrow || !title || !intro) {
+  if (!title) {
     return;
   }
 
   if (observationState.layer === "subdomains") {
-    eyebrow.textContent = "Step 2";
+    if (eyebrow) {
+      eyebrow.textContent = "Step 2";
+    }
     title.textContent = "Choose a subdomain";
-    intro.textContent = "Choose the focus area that best fits your selected domain.";
   } else if (observationState.layer === "elements") {
-    eyebrow.textContent = "Step 3";
+    if (eyebrow) {
+      eyebrow.textContent = "Step 3";
+    }
     title.textContent = "Choose an element";
-    intro.textContent = "Select the element that most closely matches your observation.";
+  } else if (observationState.layer === "behaviours") {
+    if (eyebrow) {
+      eyebrow.textContent = "Step 4";
+    }
+    title.textContent = "Choose a behaviour";
   } else {
-    eyebrow.textContent = "Step 1";
+    if (eyebrow) {
+      eyebrow.textContent = "Step 1";
+    }
     title.textContent = "Choose a domain";
-    intro.textContent = "Begin by optionally adding the child's name, then choose the domain that best matches what you observed.";
   }
+
+  if (childNameField) {
+    childNameField.hidden = observationState.layer !== "domains";
+  }
+}
+
+function renderBreadcrumbs() {
+  const wrap = document.getElementById("observation-breadcrumbs");
+  if (!wrap) {
+    return;
+  }
+
+  const domain = getSelectedDomain();
+  const subDomain = getSelectedSubDomain();
+  const element = getSelectedElement();
+  const chips = [];
+
+  if (domain?.name) {
+    chips.push({ stepId: "domains", label: domain.name });
+  }
+  if (subDomain?.name) {
+    chips.push({ stepId: "subdomains", label: subDomain.name });
+  }
+  if (element?.name) {
+    chips.push({ stepId: "elements", label: element.name });
+  }
+
+  if (!chips.length) {
+    wrap.replaceChildren();
+    return;
+  }
+
+  const nodes = chips.map((chip) => {
+    const node = document.createElement("span");
+    node.className = "observation-breadcrumb";
+    node.style.setProperty("--chip-bg", stepGradientFor(chip.stepId));
+    node.textContent = chip.label;
+    return node;
+  });
+
+  wrap.replaceChildren(...nodes);
 }
 
 function updateObservationContextTitle() {
@@ -499,6 +708,24 @@ function updateObservationContextTitle() {
   }
 
   const domain = getSelectedDomain();
+  const subDomain = getSelectedSubDomain();
+  const element = getSelectedElement();
+
+  if (observationState.layer === "behaviours") {
+    title.textContent = element?.name || subDomain?.name || domain?.name || "Choose a behaviour";
+    return;
+  }
+
+  if (observationState.layer === "elements") {
+    title.textContent = subDomain?.name || domain?.name || "Choose an element";
+    return;
+  }
+
+  if (observationState.layer === "subdomains") {
+    title.textContent = domain?.name || "Choose a subdomain";
+    return;
+  }
+
   title.textContent = domain?.name || "New observation";
 }
 
@@ -506,14 +733,32 @@ function persistObservationDraft() {
   localStorage.setItem(DRAFT_DOMAIN_KEY, observationState.selectedDomainId || "");
   localStorage.setItem(DRAFT_SUBDOMAIN_KEY, observationState.selectedSubDomainId || "");
   localStorage.setItem(DRAFT_ELEMENT_KEY, observationState.selectedElementId || "");
+  localStorage.setItem(DRAFT_BEHAVIOUR_KEY, JSON.stringify(observationState.selectedBehaviourIds || []));
 }
 
 function clearObservationDraft() {
   localStorage.removeItem(DRAFT_DOMAIN_KEY);
   localStorage.removeItem(DRAFT_SUBDOMAIN_KEY);
   localStorage.removeItem(DRAFT_ELEMENT_KEY);
+  localStorage.removeItem(DRAFT_BEHAVIOUR_KEY);
   localStorage.removeItem(DRAFT_CHILD_NAME_KEY);
   localStorage.removeItem(ACTIVE_JOURNEY_KEY);
+}
+
+function readDraftBehaviourIds() {
+  try {
+    const raw = localStorage.getItem(DRAFT_BEHAVIOUR_KEY);
+    if (!raw) {
+      return [];
+    }
+    if (raw.trim().startsWith("[") === false) {
+      return [raw.trim()].filter(Boolean);
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string" && id) : [];
+  } catch (error) {
+    return [];
+  }
 }
 
 function getActiveJourneyId() {
@@ -527,12 +772,21 @@ function setActiveJourneyId(id) {
 function buildJourneyPatch() {
   const domain = getSelectedDomain();
   const subDomain = getSelectedSubDomain();
-  const selectedElement = optionsForCurrentLayer().find(
-    (item) => item.id === observationState.selectedElementId
-  ) || null;
+  const selectedElement =
+    (subDomain?.elements || domain?.elements || []).find(
+      (item) => item.id === observationState.selectedElementId
+    ) || null;
+  const selectedBehaviour =
+    (selectedElement?.behaviours || []).find(
+      (item) => item.id === observationState.focusedBehaviourId
+    ) || null;
   const selectedEntityId = getSelectedEntityId();
   const selectedForLayer = optionsForCurrentLayer().find((item) => item.id === selectedEntityId) || null;
   const childName = (localStorage.getItem(DRAFT_CHILD_NAME_KEY) || "").trim();
+
+  const pinnedBehaviours = (selectedElement?.behaviours || []).filter((item) =>
+    observationState.selectedBehaviourIds.includes(item.id)
+  );
 
   return {
     childName,
@@ -551,7 +805,11 @@ function buildJourneyPatch() {
       subDomainId: observationState.selectedSubDomainId || "",
       subDomainName: subDomain?.name || "",
       elementId: observationState.selectedElementId || "",
-      elementName: selectedElement?.name || ""
+      elementName: selectedElement?.name || "",
+      behaviourId: observationState.focusedBehaviourId || "",
+      behaviourName: selectedBehaviour?.name || "",
+      behaviourIds: observationState.selectedBehaviourIds.slice(),
+      behaviourNames: pinnedBehaviours.map((item) => item.name)
     }
   };
 }
@@ -694,6 +952,11 @@ function openDeleteSessionDialog(session) {
 }
 
 function optionsForCurrentLayer() {
+  if (observationState.layer === "behaviours") {
+    const element = getSelectedElement();
+    return element && Array.isArray(element.behaviours) ? element.behaviours : [];
+  }
+
   if (observationState.layer === "subdomains") {
     const domain = getSelectedDomain();
     return domain && Array.isArray(domain.subDomains) ? domain.subDomains : [];
@@ -720,16 +983,239 @@ function applySelection(layer, item) {
     observationState.selectedDomainId = item.id;
     observationState.selectedSubDomainId = "";
     observationState.selectedElementId = "";
+    observationState.focusedBehaviourId = "";
+    observationState.selectedBehaviourIds = [];
+    behaviourCarouselIndex = 0;
   } else if (layer === "subdomains") {
     observationState.selectedSubDomainId = item.id;
     observationState.selectedElementId = "";
-  } else {
+    observationState.focusedBehaviourId = "";
+    observationState.selectedBehaviourIds = [];
+    behaviourCarouselIndex = 0;
+  } else if (layer === "elements") {
     observationState.selectedElementId = item.id;
+    observationState.focusedBehaviourId = "";
+    observationState.selectedBehaviourIds = [];
+    behaviourCarouselIndex = 0;
+  } else {
+    observationState.focusedBehaviourId = item.id;
   }
 
   persistObservationDraft();
   updateTipFromSelection(layer, item);
   updateNextButtonVisibility();
+  if (layer === "behaviours") {
+    upsertActiveJourney();
+  }
+}
+
+function setBehaviourCarouselIndex(nextIndex) {
+  const behaviours = optionsForCurrentLayer();
+  if (!Array.isArray(behaviours) || behaviours.length === 0) {
+    behaviourCarouselIndex = 0;
+    return;
+  }
+  const length = behaviours.length;
+  behaviourCarouselIndex = ((nextIndex % length) + length) % length;
+}
+
+function createBehaviourCard(behaviour, index, total, options = {}) {
+  if (!behaviour) {
+    const fallback = document.createElement("article");
+    fallback.className = "behaviour-card";
+    fallback.innerHTML = `
+      <h4>No behaviour available</h4>
+      <p class="behaviour-card__description">Select an element first, then choose a behaviour level.</p>
+    `;
+    return fallback;
+  }
+
+  const card = document.createElement("article");
+  const isSelected = observationState.selectedBehaviourIds.includes(behaviour.id);
+  const behaviourSentence = firstSentence(behaviour.description);
+  card.className = `behaviour-card${isSelected ? " is-pinned" : ""}`;
+
+  card.innerHTML = `
+    <p class="behaviour-card__description">${truncateText(behaviourSentence, 120)}</p>
+    <button class="behaviour-card__select ${isSelected ? "is-selected" : ""}" type="button" aria-label="${isSelected ? `Pinned ${behaviour.name}` : `Pin ${behaviour.name}`}">
+      <i class="fa-solid fa-thumbtack" aria-hidden="true"></i>
+    </button>
+  `;
+
+  const selectButton = card.querySelector(".behaviour-card__select");
+  selectButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    observationState.focusedBehaviourId = behaviour.id;
+    if (observationState.selectedBehaviourIds.includes(behaviour.id)) {
+      observationState.selectedBehaviourIds = observationState.selectedBehaviourIds.filter((id) => id !== behaviour.id);
+    } else {
+      observationState.selectedBehaviourIds = [...observationState.selectedBehaviourIds, behaviour.id];
+    }
+    persistObservationDraft();
+    upsertActiveJourney();
+    updateTipFromSelection("behaviours", behaviour);
+    renderCurrentLayerOptions();
+  });
+
+  card.addEventListener("click", () => {
+    observationState.focusedBehaviourId = behaviour.id;
+    updateTipFromSelection("behaviours", behaviour);
+    if (options.onFocus) {
+      options.onFocus();
+      return;
+    }
+    renderCurrentLayerOptions();
+  });
+
+  return card;
+}
+
+function renderBehaviourCarousel() {
+  const list = document.getElementById("domain-options");
+  if (!list) {
+    return;
+  }
+
+  const behaviours = optionsForCurrentLayer();
+  if (behaviours.length === 0) {
+    list.replaceChildren();
+    return;
+  }
+
+  const selectedIndex = behaviours.findIndex((item) => item.id === observationState.focusedBehaviourId);
+  if (!Number.isInteger(behaviourCarouselIndex) || behaviourCarouselIndex >= behaviours.length) {
+    behaviourCarouselIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  }
+  setBehaviourCarouselIndex(behaviourCarouselIndex);
+
+  const active = behaviours[behaviourCarouselIndex] || behaviours[0];
+  if (!active) {
+    list.replaceChildren();
+    return;
+  }
+  const total = behaviours.length;
+  const farPrevIndex = (behaviourCarouselIndex - 2 + total) % total;
+  const prevIndex = (behaviourCarouselIndex - 1 + total) % total;
+  const nextIndex = (behaviourCarouselIndex + 1) % total;
+  const farNextIndex = (behaviourCarouselIndex + 2) % total;
+  const root = document.createElement("div");
+  root.className = "behaviour-carousel";
+  root.innerHTML = `
+    <button class="behaviour-carousel__nav" type="button" aria-label="Previous behaviour">
+      <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+    </button>
+    <div class="behaviour-carousel__viewport">
+      <div class="behaviour-carousel__track">
+        <div class="behaviour-carousel__item behaviour-carousel__item--far-prev"></div>
+        <div class="behaviour-carousel__item behaviour-carousel__item--prev"></div>
+        <div class="behaviour-carousel__item behaviour-carousel__item--active"></div>
+        <div class="behaviour-carousel__item behaviour-carousel__item--next"></div>
+        <div class="behaviour-carousel__item behaviour-carousel__item--far-next"></div>
+      </div>
+    </div>
+    <button class="behaviour-carousel__nav" type="button" aria-label="Next behaviour">
+      <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+    </button>
+  `;
+
+  const viewport = root.querySelector(".behaviour-carousel__viewport");
+  const track = root.querySelector(".behaviour-carousel__track");
+  const farPrevSlot = root.querySelector(".behaviour-carousel__item--far-prev");
+  const prevSlot = root.querySelector(".behaviour-carousel__item--prev");
+  const activeSlot = root.querySelector(".behaviour-carousel__item--active");
+  const nextSlot = root.querySelector(".behaviour-carousel__item--next");
+  const farNextSlot = root.querySelector(".behaviour-carousel__item--far-next");
+
+  farPrevSlot?.append(createBehaviourCard(behaviours[farPrevIndex], farPrevIndex, total));
+  prevSlot?.append(createBehaviourCard(behaviours[prevIndex], prevIndex, total, {
+    onFocus: () => slideTo(-1)
+  }));
+  activeSlot?.append(createBehaviourCard(active, behaviourCarouselIndex, total));
+  nextSlot?.append(createBehaviourCard(behaviours[nextIndex], nextIndex, total, {
+    onFocus: () => slideTo(1)
+  }));
+  farNextSlot?.append(createBehaviourCard(behaviours[farNextIndex], farNextIndex, total));
+
+  const slideTo = (direction) => {
+    if (!track || behaviourIsSliding) {
+      return;
+    }
+    behaviourIsSliding = true;
+    track.classList.add(direction > 0 ? "is-slide-next" : "is-slide-prev");
+    let settled = false;
+
+    const complete = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      behaviourIsSliding = false;
+      setBehaviourCarouselIndex(behaviourCarouselIndex + direction);
+      const behavioursNow = optionsForCurrentLayer();
+      observationState.focusedBehaviourId = behavioursNow[behaviourCarouselIndex]?.id || "";
+      renderCurrentLayerOptions();
+    };
+
+    const onTransitionEnd = () => {
+      track.removeEventListener("transitionend", onTransitionEnd);
+      complete();
+    };
+
+    track.addEventListener("transitionend", onTransitionEnd, { once: true });
+    window.setTimeout(() => {
+      if (behaviourIsSliding) {
+        complete();
+      }
+    }, 320);
+  };
+
+  const navButtons = root.querySelectorAll(".behaviour-carousel__nav");
+  navButtons[0]?.addEventListener("click", (event) => {
+    event.preventDefault();
+    slideTo(-1);
+  });
+  navButtons[1]?.addEventListener("click", (event) => {
+    event.preventDefault();
+    slideTo(1);
+  });
+
+  let swipeStartX = 0;
+  const onSwipeEnd = (endX) => {
+    const delta = endX - swipeStartX;
+    if (Math.abs(delta) < 40) {
+      return;
+    }
+    if (delta < 0) {
+      slideTo(1);
+    } else {
+      slideTo(-1);
+    }
+  };
+
+  viewport?.addEventListener("pointerdown", (event) => {
+    swipeStartX = Number.isFinite(event.clientX) ? event.clientX : 0;
+  });
+  viewport?.addEventListener("pointerup", (event) => {
+    if (!Number.isFinite(event.clientX)) {
+      return;
+    }
+    onSwipeEnd(event.clientX);
+  });
+  viewport?.addEventListener("touchstart", (event) => {
+    const touch = event.changedTouches?.[0];
+    swipeStartX = touch ? touch.clientX : 0;
+  }, { passive: true });
+  viewport?.addEventListener("touchend", (event) => {
+    const touch = event.changedTouches?.[0];
+    if (!touch) {
+      return;
+    }
+    onSwipeEnd(touch.clientX);
+  });
+
+  list.replaceChildren(root);
+  const focused = behaviours.find((item) => item.id === observationState.focusedBehaviourId) || active;
+  updateTipFromSelection("behaviours", focused);
 }
 
 function renderCurrentLayerOptions() {
@@ -740,6 +1226,14 @@ function renderCurrentLayerOptions() {
 
   updateSelectionHeader();
   updateObservationContextTitle();
+  updateHelperFigure(currentStepFromLayer(observationState.layer));
+  renderBreadcrumbs();
+  if (observationState.layer === "behaviours") {
+    renderBehaviourCarousel();
+    updateNextButtonVisibility();
+    return;
+  }
+
   const options = optionsForCurrentLayer();
   const selectedId = selectedIdForCurrentLayer();
   const buttons = options.map((item) => {
@@ -792,9 +1286,57 @@ function goToNextLayer() {
     }
 
     upsertActiveJourney();
+    observationState.layer = "behaviours";
     setActiveStep("behaviours");
     renderStepper();
+    renderHelpTip();
+    renderCurrentLayerOptions();
+    return;
   }
+
+  if (observationState.layer === "behaviours") {
+    if (!observationState.selectedBehaviourIds.length) {
+      return;
+    }
+
+    upsertActiveJourney();
+    setActiveStep("statement");
+    renderStepper();
+    renderHelpTip();
+  }
+}
+
+function goToPreviousLayer() {
+  if (observationState.layer === "behaviours") {
+    observationState.layer = "elements";
+    setActiveStep(currentStepFromLayer(observationState.layer));
+    renderStepper();
+    renderHelpTip();
+    renderCurrentLayerOptions();
+    return;
+  }
+
+  if (observationState.layer === "elements") {
+    const domain = getSelectedDomain();
+    const hasSubDomains = Array.isArray(domain?.subDomains) && domain.subDomains.length > 0;
+    observationState.layer = hasSubDomains ? "subdomains" : "domains";
+    setActiveStep(currentStepFromLayer(observationState.layer));
+    renderStepper();
+    renderHelpTip();
+    renderCurrentLayerOptions();
+    return;
+  }
+
+  if (observationState.layer === "subdomains") {
+    observationState.layer = "domains";
+    setActiveStep(currentStepFromLayer(observationState.layer));
+    renderStepper();
+    renderHelpTip();
+    renderCurrentLayerOptions();
+    return;
+  }
+
+  window.location.href = "index.html";
 }
 
 async function initObservationFlow() {
@@ -811,10 +1353,20 @@ async function initObservationFlow() {
     const draftDomain = localStorage.getItem(DRAFT_DOMAIN_KEY) || activeJourney?.path?.domainId || "";
     const draftSubDomain = localStorage.getItem(DRAFT_SUBDOMAIN_KEY) || activeJourney?.path?.subDomainId || "";
     const draftElement = localStorage.getItem(DRAFT_ELEMENT_KEY) || activeJourney?.path?.elementId || "";
+    const draftBehaviours = readDraftBehaviourIds();
 
     observationState.selectedDomainId = draftDomain;
     observationState.selectedSubDomainId = draftSubDomain;
     observationState.selectedElementId = draftElement;
+    observationState.selectedBehaviourIds = draftBehaviours.length
+      ? draftBehaviours
+      : Array.isArray(activeJourney?.path?.behaviourIds)
+        ? activeJourney.path.behaviourIds
+        : [];
+    observationState.focusedBehaviourId =
+      observationState.selectedBehaviourIds[0] ||
+      activeJourney?.path?.behaviourId ||
+      "";
 
     if (activeJourney?.childName && !localStorage.getItem(DRAFT_CHILD_NAME_KEY)) {
       localStorage.setItem(DRAFT_CHILD_NAME_KEY, activeJourney.childName);
@@ -822,6 +1374,18 @@ async function initObservationFlow() {
 
     const activeStep = getActiveStepId();
     observationState.layer = FLOW_STEPS.includes(activeStep) ? activeStep : "domains";
+    if (observationState.layer === "behaviours" && !observationState.selectedElementId) {
+      observationState.layer = "elements";
+      setActiveStep("elements");
+    }
+    if (observationState.layer === "behaviours") {
+      const behaviours = optionsForCurrentLayer();
+      if (!observationState.focusedBehaviourId && behaviours.length > 0) {
+        observationState.focusedBehaviourId = behaviours[0].id;
+      }
+      const selectedIndex = behaviours.findIndex((item) => item.id === observationState.focusedBehaviourId);
+      setBehaviourCarouselIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    }
 
     renderCurrentLayerOptions();
 
@@ -930,6 +1494,13 @@ function bindObservationActions() {
   if (nextButton) {
     nextButton.addEventListener("click", () => {
       goToNextLayer();
+    });
+  }
+
+  const backButton = document.getElementById("observation-back-button");
+  if (backButton) {
+    backButton.addEventListener("click", () => {
+      goToPreviousLayer();
     });
   }
 }
