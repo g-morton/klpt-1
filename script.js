@@ -13,6 +13,7 @@ const NAVIGATION_DATA_PATH = "assets/data/navigation.json";
 const MAX_SESSIONS = 5;
 const FLOW_STEPS = ["domains", "subdomains", "elements", "behaviours"];
 const STEP_ORDER = ["domains", "subdomains", "elements", "behaviours", "statement", "review"];
+const JOURNEY_SCHEMA_VERSION = 2;
 const STEP_GRADIENTS = [
   "linear-gradient(90deg, #4e9bd0 0%, #5aa8db 100%)",
   "linear-gradient(90deg, #86c8ec 0%, #a6d8f2 100%)",
@@ -152,11 +153,12 @@ function normaliseSession(session, index) {
 }
 
 function normaliseJourneyForSession(journey, index) {
+  const state = getJourneyState(journey);
   const domainName = journey.path?.domainName || "";
-  const title = journey.childName?.trim() || domainName || "New observation";
+  const title = state.childName.trim() || domainName || "New observation";
   const friendlyTime = journey.friendlyUpdatedAt || formatSessionTime(journey.updatedAt || journey.createdAt);
   const lastChoice =
-    journey.lastSelection?.label ||
+    state.lastSelection?.label ||
     journey.path?.elementName ||
     journey.path?.subDomainName ||
     journey.path?.domainName ||
@@ -208,6 +210,13 @@ function createSessionCard(session, index) {
       <i class="fa-solid fa-angle-right"></i>
     </span>
   `;
+  button.addEventListener("click", () => {
+    if (!item.id) {
+      window.location.href = "observation.html";
+      return;
+    }
+    openJourneySession(item.id);
+  });
 
   card.append(button);
 
@@ -252,9 +261,9 @@ function toLabel(value) {
 function getActiveStepId() {
   const params = new URLSearchParams(window.location.search);
   return (
-    document.body.dataset.step ||
     params.get("step") ||
     localStorage.getItem(STEP_STORAGE_KEY) ||
+    document.body.dataset.step ||
     DEFAULT_STEP_ID
   );
 }
@@ -769,6 +778,107 @@ function setActiveJourneyId(id) {
   localStorage.setItem(ACTIVE_JOURNEY_KEY, id);
 }
 
+function normaliseStepId(stepId) {
+  return STEP_ORDER.includes(stepId) ? stepId : DEFAULT_STEP_ID;
+}
+
+function getJourneyState(journey) {
+  const safeJourney = journey && typeof journey === "object" ? journey : {};
+  const state = safeJourney.state && typeof safeJourney.state === "object"
+    ? safeJourney.state
+    : {};
+  const legacyPath = safeJourney.path && typeof safeJourney.path === "object"
+    ? safeJourney.path
+    : {};
+  const selection = state.selection && typeof state.selection === "object"
+    ? state.selection
+    : {};
+  const rawBehaviourIds = Array.isArray(selection.behaviourIds)
+    ? selection.behaviourIds
+    : Array.isArray(legacyPath.behaviourIds)
+      ? legacyPath.behaviourIds
+      : [];
+
+  const currentStep = normaliseStepId(state.currentStep || safeJourney.currentStep || DEFAULT_STEP_ID);
+  const layerFromStep = FLOW_STEPS.includes(currentStep) ? currentStep : "behaviours";
+
+  return {
+    currentStep,
+    layer: FLOW_STEPS.includes(state.layer) ? state.layer : layerFromStep,
+    childName: typeof state.childName === "string"
+      ? state.childName
+      : (typeof safeJourney.childName === "string" ? safeJourney.childName : ""),
+    lastSelection: state.lastSelection || safeJourney.lastSelection || null,
+    selection: {
+      domainId: selection.domainId || legacyPath.domainId || "",
+      subDomainId: selection.subDomainId || legacyPath.subDomainId || "",
+      elementId: selection.elementId || legacyPath.elementId || "",
+      behaviourId: selection.behaviourId || legacyPath.behaviourId || "",
+      behaviourIds: rawBehaviourIds
+        .filter((id) => typeof id === "string" && id)
+    }
+  };
+}
+
+function restoreDraftFromJourney(journey) {
+  const state = getJourneyState(journey);
+  localStorage.setItem(DRAFT_DOMAIN_KEY, state.selection.domainId || "");
+  localStorage.setItem(DRAFT_SUBDOMAIN_KEY, state.selection.subDomainId || "");
+  localStorage.setItem(DRAFT_ELEMENT_KEY, state.selection.elementId || "");
+  localStorage.setItem(DRAFT_BEHAVIOUR_KEY, JSON.stringify(state.selection.behaviourIds || []));
+  localStorage.setItem(DRAFT_CHILD_NAME_KEY, state.childName || "");
+  return state;
+}
+
+function resolveResumeStepId(state) {
+  if (!state || !state.selection) {
+    return DEFAULT_STEP_ID;
+  }
+
+  const hasDomain = Boolean(state.selection.domainId);
+  const hasSubDomain = Boolean(state.selection.subDomainId);
+  const hasElement = Boolean(state.selection.elementId);
+  const hasBehaviour = Boolean(
+    state.selection.behaviourId ||
+    (Array.isArray(state.selection.behaviourIds) && state.selection.behaviourIds.length > 0)
+  );
+
+  if (hasBehaviour && hasElement) {
+    return "behaviours";
+  }
+  if (hasElement) {
+    return "elements";
+  }
+  if (hasSubDomain) {
+    return "subdomains";
+  }
+  if (hasDomain) {
+    return "domains";
+  }
+
+  return normaliseStepId(state.currentStep || DEFAULT_STEP_ID);
+}
+
+function openJourneySession(journeyId) {
+  if (!journeyId) {
+    window.location.href = "observation.html";
+    return;
+  }
+
+  const journeys = readJourneys();
+  const journey = journeys.find((item) => item.id === journeyId);
+  if (!journey) {
+    window.location.href = "observation.html";
+    return;
+  }
+
+  const state = restoreDraftFromJourney(journey);
+  const stepId = resolveResumeStepId(state);
+  setActiveJourneyId(journeyId);
+  localStorage.setItem(STEP_STORAGE_KEY, stepId);
+  window.location.href = `observation.html?step=${encodeURIComponent(stepId)}`;
+}
+
 function buildJourneyPatch() {
   const domain = getSelectedDomain();
   const subDomain = getSelectedSubDomain();
@@ -788,10 +898,36 @@ function buildJourneyPatch() {
     observationState.selectedBehaviourIds.includes(item.id)
   );
 
+  const selection = {
+    domainId: observationState.selectedDomainId || "",
+    subDomainId: observationState.selectedSubDomainId || "",
+    elementId: observationState.selectedElementId || "",
+    behaviourId: observationState.focusedBehaviourId || "",
+    behaviourIds: observationState.selectedBehaviourIds.slice()
+  };
+
+  const currentStep = normaliseStepId(
+    localStorage.getItem(STEP_STORAGE_KEY) || currentStepFromLayer(observationState.layer)
+  );
+
   return {
+    schemaVersion: JOURNEY_SCHEMA_VERSION,
     childName,
-    currentStep: currentStepFromLayer(observationState.layer),
+    currentStep,
     status: "draft",
+    state: {
+      currentStep,
+      layer: observationState.layer,
+      childName,
+      lastSelection: selectedForLayer
+        ? {
+            layer: observationState.layer,
+            id: selectedEntityId || "",
+            label: selectedForLayer.name || ""
+          }
+        : null,
+      selection
+    },
     lastSelection: selectedForLayer
       ? {
           layer: observationState.layer,
@@ -800,15 +936,15 @@ function buildJourneyPatch() {
         }
       : null,
     path: {
-      domainId: observationState.selectedDomainId || "",
+      domainId: selection.domainId,
       domainName: domain?.name || "",
-      subDomainId: observationState.selectedSubDomainId || "",
+      subDomainId: selection.subDomainId,
       subDomainName: subDomain?.name || "",
-      elementId: observationState.selectedElementId || "",
+      elementId: selection.elementId,
       elementName: selectedElement?.name || "",
-      behaviourId: observationState.focusedBehaviourId || "",
+      behaviourId: selection.behaviourId,
       behaviourName: selectedBehaviour?.name || "",
-      behaviourIds: observationState.selectedBehaviourIds.slice(),
+      behaviourIds: selection.behaviourIds,
       behaviourNames: pinnedBehaviours.map((item) => item.name)
     }
   };
@@ -1004,9 +1140,7 @@ function applySelection(layer, item) {
   persistObservationDraft();
   updateTipFromSelection(layer, item);
   updateNextButtonVisibility();
-  if (layer === "behaviours") {
-    upsertActiveJourney();
-  }
+  upsertActiveJourney();
 }
 
 function setBehaviourCarouselIndex(nextIndex) {
@@ -1256,10 +1390,10 @@ function goToNextLayer() {
       return;
     }
 
-    upsertActiveJourney();
     const hasSubDomains = Array.isArray(domain.subDomains) && domain.subDomains.length > 0;
     observationState.layer = hasSubDomains ? "subdomains" : "elements";
     setActiveStep(currentStepFromLayer(observationState.layer));
+    upsertActiveJourney();
     renderStepper();
     renderHelpTip();
     renderCurrentLayerOptions();
@@ -1271,9 +1405,9 @@ function goToNextLayer() {
       return;
     }
 
-    upsertActiveJourney();
     observationState.layer = "elements";
     setActiveStep(currentStepFromLayer(observationState.layer));
+    upsertActiveJourney();
     renderStepper();
     renderHelpTip();
     renderCurrentLayerOptions();
@@ -1285,9 +1419,9 @@ function goToNextLayer() {
       return;
     }
 
-    upsertActiveJourney();
     observationState.layer = "behaviours";
     setActiveStep("behaviours");
+    upsertActiveJourney();
     renderStepper();
     renderHelpTip();
     renderCurrentLayerOptions();
@@ -1299,8 +1433,8 @@ function goToNextLayer() {
       return;
     }
 
-    upsertActiveJourney();
     setActiveStep("statement");
+    upsertActiveJourney();
     renderStepper();
     renderHelpTip();
   }
@@ -1310,6 +1444,7 @@ function goToPreviousLayer() {
   if (observationState.layer === "behaviours") {
     observationState.layer = "elements";
     setActiveStep(currentStepFromLayer(observationState.layer));
+    upsertActiveJourney();
     renderStepper();
     renderHelpTip();
     renderCurrentLayerOptions();
@@ -1321,6 +1456,7 @@ function goToPreviousLayer() {
     const hasSubDomains = Array.isArray(domain?.subDomains) && domain.subDomains.length > 0;
     observationState.layer = hasSubDomains ? "subdomains" : "domains";
     setActiveStep(currentStepFromLayer(observationState.layer));
+    upsertActiveJourney();
     renderStepper();
     renderHelpTip();
     renderCurrentLayerOptions();
@@ -1330,6 +1466,7 @@ function goToPreviousLayer() {
   if (observationState.layer === "subdomains") {
     observationState.layer = "domains";
     setActiveStep(currentStepFromLayer(observationState.layer));
+    upsertActiveJourney();
     renderStepper();
     renderHelpTip();
     renderCurrentLayerOptions();
@@ -1350,9 +1487,10 @@ async function initObservationFlow() {
     domainsCache = data.domains || [];
 
     const activeJourney = readJourneys().find((journey) => journey.id === getActiveJourneyId());
-    const draftDomain = localStorage.getItem(DRAFT_DOMAIN_KEY) || activeJourney?.path?.domainId || "";
-    const draftSubDomain = localStorage.getItem(DRAFT_SUBDOMAIN_KEY) || activeJourney?.path?.subDomainId || "";
-    const draftElement = localStorage.getItem(DRAFT_ELEMENT_KEY) || activeJourney?.path?.elementId || "";
+    const journeyState = getJourneyState(activeJourney);
+    const draftDomain = localStorage.getItem(DRAFT_DOMAIN_KEY) || journeyState.selection.domainId || "";
+    const draftSubDomain = localStorage.getItem(DRAFT_SUBDOMAIN_KEY) || journeyState.selection.subDomainId || "";
+    const draftElement = localStorage.getItem(DRAFT_ELEMENT_KEY) || journeyState.selection.elementId || "";
     const draftBehaviours = readDraftBehaviourIds();
 
     observationState.selectedDomainId = draftDomain;
@@ -1360,20 +1498,20 @@ async function initObservationFlow() {
     observationState.selectedElementId = draftElement;
     observationState.selectedBehaviourIds = draftBehaviours.length
       ? draftBehaviours
-      : Array.isArray(activeJourney?.path?.behaviourIds)
-        ? activeJourney.path.behaviourIds
+      : Array.isArray(journeyState.selection.behaviourIds)
+        ? journeyState.selection.behaviourIds
         : [];
     observationState.focusedBehaviourId =
       observationState.selectedBehaviourIds[0] ||
-      activeJourney?.path?.behaviourId ||
+      journeyState.selection.behaviourId ||
       "";
 
-    if (activeJourney?.childName && !localStorage.getItem(DRAFT_CHILD_NAME_KEY)) {
-      localStorage.setItem(DRAFT_CHILD_NAME_KEY, activeJourney.childName);
+    if (journeyState.childName && !localStorage.getItem(DRAFT_CHILD_NAME_KEY)) {
+      localStorage.setItem(DRAFT_CHILD_NAME_KEY, journeyState.childName);
     }
 
     const activeStep = getActiveStepId();
-    observationState.layer = FLOW_STEPS.includes(activeStep) ? activeStep : "domains";
+    observationState.layer = FLOW_STEPS.includes(activeStep) ? activeStep : "behaviours";
     if (observationState.layer === "behaviours" && !observationState.selectedElementId) {
       observationState.layer = "elements";
       setActiveStep("elements");

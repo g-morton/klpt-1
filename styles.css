@@ -20,7 +20,7 @@
     #2da0dd 284deg 360deg
   );
   --button: linear-gradient(135deg, #4eb4a0 0%, #7acb77 50%, #98d157 100%);
-  --panel-glow: radial-gradient(circle at top, rgba(251, 247, 223, 0.95), rgba(255, 251, 246, 0));
+  --panel-glow: radial-gradient(circle at top, rgba(255, 228, 118, 1), rgba(255, 242, 186, 0.48) 54%, rgba(255, 251, 246, 0));
   --title-font: "Trebuchet MS", "Segoe UI", "Avenir Next", sans-serif;
 }
 
@@ -39,8 +39,8 @@ body {
 body {
   font-family: var(--title-font);
   background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 34%),
-    linear-gradient(180deg, #f4f0ee 0%, #ece7e4 100%);
+    radial-gradient(circle at 50% -18%, rgba(255, 245, 212, 0.28), rgba(255, 249, 235, 0.12) 34%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, #f3efea 0%, #f1ede9 38%, #ece7e4 100%);
   color: var(--text);
 }
 
@@ -69,8 +69,8 @@ a {
   border-radius: 0;
   border: 0;
   background:
-    radial-gradient(circle at 50% 26%, rgba(247, 242, 222, 0.55), rgba(255, 255, 255, 0) 21%),
-    linear-gradient(180deg, #fffcfa 0%, #f9f6f3 100%);
+    radial-gradient(circle at 50% 18%, rgba(255, 247, 214, 0.22), rgba(255, 251, 238, 0.12) 24%, rgba(255, 255, 255, 0) 44%),
+    linear-gradient(180deg, #fdfbf8 0%, #faf7f1 26%, #f5ede0 100%);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.8);
   display: grid;
@@ -119,10 +119,9 @@ a {
 }
 
 .observation-context {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 0.8rem;
+  min-height: 2.35rem;
 }
 
 .observation-context__title {
@@ -936,10 +935,10 @@ a {
   left: 50%;
   bottom: -0.5rem;
   width: 100vw;
-  height: 10.5rem;
+  height: 15.5rem;
   background:
-    radial-gradient(circle at 50% 100%, rgba(248, 223, 170, 0.8), rgba(251, 240, 211, 0.72) 35%, rgba(255, 251, 246, 0) 78%);
-  filter: blur(18px);
+    radial-gradient(circle at 50% 100%, rgba(255, 198, 56, 0.98), rgba(255, 224, 119, 0.9) 34%, rgba(255, 239, 175, 0.62) 56%, rgba(255, 249, 225, 0.18) 76%, rgba(255, 251, 246, 0) 88%);
+  filter: blur(24px);
   transform: translateX(-50%);
   z-index: 0;
 }
@@ -1037,7 +1036,8 @@ body[data-page="observation"] .cta-wrap {
   padding: 0.85rem 1rem 1.1rem;
 }
 
-body[data-page="observation"] .tip-card {
+body[data-page="observation"] .tip-card,
+body[data-page="home"] .tip-card {
   border-radius: 1.8rem 1.8rem 0 0;
   padding: clamp(1.2rem, 2.2vw, 1.7rem);
   padding-top: clamp(1.35rem, 2.5vw, 1.9rem);
@@ -1045,7 +1045,8 @@ body[data-page="observation"] .tip-card {
   gap: 0.45rem;
 }
 
-body[data-page="observation"] .tip-card__icon {
+body[data-page="observation"] .tip-card__icon,
+body[data-page="home"] .tip-card__icon {
   position: absolute;
   top: 0;
   left: 0;
@@ -1058,21 +1059,25 @@ body[data-page="observation"] .tip-card__icon {
     inset 0 0 0 1px rgba(255, 249, 226, 0.8);
 }
 
-body[data-page="observation"] .tip-card__content {
+body[data-page="observation"] .tip-card__content,
+body[data-page="home"] .tip-card__content {
   min-height: 0;
   gap: 0.35rem;
 }
 
-body[data-page="observation"] .tip-card__eyebrow {
+body[data-page="observation"] .tip-card__eyebrow,
+body[data-page="home"] .tip-card__eyebrow {
   display: none;
 }
 
-body[data-page="observation"] .tip-card__title {
+body[data-page="observation"] .tip-card__title,
+body[data-page="home"] .tip-card__title {
   font-size: clamp(1.18rem, 2.3vw, 1.6rem);
   line-height: 1.28;
 }
 
-body[data-page="observation"] .tip-card__body {
+body[data-page="observation"] .tip-card__body,
+body[data-page="home"] .tip-card__body {
   font-size: clamp(1rem, 1.75vw, 1.2rem);
   line-height: 1.58;
 }
@@ -1098,23 +1103,6 @@ body.is-home-empty .action-panel {
 body.is-home-empty .tip-card {
   min-height: clamp(14rem, 32vh, 20rem);
   align-content: start;
-  padding: clamp(1.2rem, 2.6vw, 1.9rem);
-  grid-template-columns: auto minmax(0, 1fr);
-}
-
-body.is-home-empty .tip-card__icon {
-  width: clamp(4.8rem, 9vw, 6rem);
-  height: clamp(4.8rem, 9vw, 6rem);
-  font-size: clamp(2rem, 3.8vw, 2.8rem);
-}
-
-body.is-home-empty .tip-card__title {
-  font-size: clamp(1.2rem, 2.8vw, 1.9rem);
-}
-
-body.is-home-empty .tip-card__body {
-  font-size: clamp(0.98rem, 1.8vw, 1.2rem);
-  max-width: 56ch;
 }
 
 body.is-home-empty .sessions {
