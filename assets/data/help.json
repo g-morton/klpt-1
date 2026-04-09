@@ -7,38 +7,38 @@
   "steps": [
     {
       "id": "domains",
-      "title": "Choose a domain",
-      "body": "Start by selecting the broad learning area that best matches what you observed.",
+      "title": "Choose a focus domain",
+      "body": "Choose the focus domain for this observation.",
       "icon": "lightbulb"
     },
     {
       "id": "subdomains",
-      "title": "Refine the focus",
-      "body": "Pick the subdomain that gives the clearest match for the child’s learning context.",
+      "title": "Narrow the focus",
+      "body": "Choose the subdomain that best matches what you noticed.",
       "icon": "lightbulb"
     },
     {
       "id": "elements",
-      "title": "Select an element",
-      "body": "Choose the element that most closely reflects the specific skill, behaviour, or capability you noticed.",
+      "title": "Select key elements",
+      "body": "Pick one or more elements that describe the observed learning.",
       "icon": "lightbulb"
     },
     {
       "id": "behaviours",
-      "title": "Match the behaviour",
-      "body": "Compare the listed behaviours and select the one that best represents the child’s current progress.",
+      "title": "Choose behaviours",
+      "body": "Choose one behaviour for each selected element track.",
       "icon": "lightbulb"
     },
     {
       "id": "statement",
-      "title": "Capture the observation",
-      "body": "Complete the statement with concise notes that describe what the child did, said, or demonstrated.",
+      "title": "Capture your notes",
+      "body": "Write a short, clear statement about what the child did, said, or showed.",
       "icon": "lightbulb"
     },
     {
       "id": "review",
-      "title": "Review before saving",
-      "body": "Check the selected pathway and notes to make sure the observation is accurate and ready to keep or export.",
+      "title": "Review and finish",
+      "body": "Check the pathway and notes, then save or export when you're happy.",
       "icon": "lightbulb"
     }
   ]

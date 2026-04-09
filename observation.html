@@ -15,6 +15,9 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-page="observation" data-step="domains">
+  <div class="poc-banner" role="note" aria-label="Proof of concept notice">
+    <span class="poc-banner__text">PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY</span>
+  </div>
   <main class="page-shell">
     <section class="device-frame" aria-label="New observation">
       <div class="screen">
@@ -25,6 +28,10 @@
                 <div class="observation-context">
                   <button class="back-button" id="observation-back-button" type="button" aria-label="Go back">
                     <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                  </button>
+                  <h1 class="observation-context__title" id="observation-context-title">New observation</h1>
+                  <button class="home-button" id="observation-home-button" type="button" aria-label="Go to homepage">
+                    <i class="fa-solid fa-house" aria-hidden="true"></i>
                   </button>
                 </div>
                 <div class="observation-progress">
@@ -56,6 +63,11 @@
                     <h3 id="domain-options-title">Choose a domain</h3>
                   </div>
                   <div class="selection-list" id="domain-options"></div>
+                  <div class="cta-wrap">
+                    <button class="start-button" id="next-step-button" type="button" hidden>
+                      <span>Next</span>
+                    </button>
+                  </div>
                 </section>
               </section>
             </div>
@@ -81,11 +93,6 @@
             </div>
           </article>
 
-          <div class="cta-wrap">
-            <button class="start-button" id="next-step-button" type="button" hidden>
-              <span>Next</span>
-            </button>
-          </div>
         </section>
       </div>
     </section>

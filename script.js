@@ -317,13 +317,41 @@ async function renderStepper() {
 
     const navigation = await response.json();
     const activeStepId = getActiveStepId();
-    const steps = navigation.steps || [];
+    const selectedDomain = getSelectedDomain();
+    const hasSubDomains = Array.isArray(selectedDomain?.subDomains) && selectedDomain.subDomains.length > 0;
+    const steps = (navigation.steps || []).filter((step) => {
+      if (!FLOW_STEPS.includes(step.id)) {
+        return false;
+      }
+      if (step.id === "subdomains" && !hasSubDomains) {
+        return false;
+      }
+      return true;
+    });
     const activeIndex = Math.max(steps.findIndex((step) => step.id === activeStepId), 0);
+    const selectedElements = getSelectedElements();
+    const selectedElementLabel = selectedElements.length
+      ? `${selectedElements[0]?.name || ""}${selectedElements.length > 1 ? ` +${selectedElements.length - 1}` : ""}`
+      : "";
+    const selectedTrackCount = observationState.selectedBehaviourIds.length;
+    const totalTrackCount = getSelectedElementIds().length;
+    const selectedBehaviourLabel = selectedTrackCount > 0
+      ? `${selectedTrackCount}/${totalTrackCount || selectedTrackCount} tracks`
+      : "";
+    const labelByStep = {
+      domains: getSelectedDomain()?.name || "",
+      subdomains: getSelectedSubDomain()?.name || "",
+      elements: selectedElementLabel,
+      behaviours: selectedBehaviourLabel
+    };
+
     const items = steps.map((step, index) => {
       const item = document.createElement("div");
       item.className = "stepper__item";
       item.dataset.stepId = step.id;
       item.style.setProperty("--step-color", STEP_GRADIENTS[index % STEP_GRADIENTS.length]);
+      const chipLabel = (labelByStep[step.id] || "").trim();
+      const canJump = canNavigateToStep(step.id);
 
       if (index < activeIndex) {
         item.classList.add("is-complete");
@@ -333,10 +361,27 @@ async function renderStepper() {
         item.classList.add("is-active");
       }
 
-      item.innerHTML = `
-        <div class="stepper__chip">${index + 1}. ${step.title}</div>
-        <div class="stepper__line" aria-hidden="true"></div>
-      `;
+      if (chipLabel) {
+        item.classList.add("is-filled");
+      }
+
+      if (canJump) {
+        item.classList.add("is-clickable");
+      } else {
+        item.classList.add("is-locked");
+      }
+
+      const chipButton = document.createElement("button");
+      chipButton.type = "button";
+      chipButton.className = "stepper__chip";
+      chipButton.innerHTML = chipLabel || "&nbsp;";
+      chipButton.disabled = !canJump;
+      chipButton.setAttribute("aria-label", step.title || chipLabel || `Step ${index + 1}`);
+      chipButton.title = step.title || chipLabel || `Step ${index + 1}`;
+      chipButton.addEventListener("click", () => {
+        navigateToStep(step.id);
+      });
+      item.append(chipButton);
 
       return item;
     });
@@ -393,12 +438,13 @@ const observationState = {
   selectedDomainId: "",
   selectedSubDomainId: "",
   selectedElementId: "",
+  selectedElementIds: [],
   focusedBehaviourId: "",
-  selectedBehaviourIds: []
+  selectedBehaviourIds: [],
+  selectedBehaviourByElement: {}
 };
 let domainsCache = [];
-let behaviourCarouselIndex = 0;
-let behaviourIsSliding = false;
+let behaviourCarouselIndexByElement = {};
 
 function currentStepFromLayer(layer) {
   if (layer === "subdomains") {
@@ -411,6 +457,43 @@ function currentStepFromLayer(layer) {
     return "behaviours";
   }
   return "domains";
+}
+
+function canNavigateToStep(stepId) {
+  const domain = getSelectedDomain();
+  const hasSubDomains = Array.isArray(domain?.subDomains) && domain.subDomains.length > 0;
+  if (stepId === "domains") {
+    return true;
+  }
+  if (stepId === "subdomains") {
+    return Boolean(domain) && hasSubDomains;
+  }
+  if (stepId === "elements") {
+    if (!domain) {
+      return false;
+    }
+    if (hasSubDomains) {
+      return Boolean(observationState.selectedSubDomainId);
+    }
+    return true;
+  }
+  if (stepId === "behaviours") {
+    return getSelectedElementIds().length > 0;
+  }
+  return false;
+}
+
+function navigateToStep(stepId) {
+  if (!FLOW_STEPS.includes(stepId) || !canNavigateToStep(stepId)) {
+    return;
+  }
+  observationState.layer = stepId;
+  setActiveStep(currentStepFromLayer(observationState.layer));
+  persistObservationDraft();
+  upsertActiveJourney();
+  renderStepper();
+  renderHelpTip();
+  renderCurrentLayerOptions();
 }
 
 function getSelectedEntityId() {
@@ -426,6 +509,17 @@ function getSelectedEntityId() {
   return observationState.selectedDomainId;
 }
 
+function getSelectedElementIds() {
+  const ids = Array.isArray(observationState.selectedElementIds)
+    ? observationState.selectedElementIds
+    : [];
+  const normalised = ids.filter((id) => typeof id === "string" && id);
+  if (normalised.length) {
+    return [...new Set(normalised)];
+  }
+  return observationState.selectedElementId ? [observationState.selectedElementId] : [];
+}
+
 function updateNextButtonVisibility() {
   const nextButton = document.getElementById("next-step-button");
   if (!nextButton) {
@@ -437,12 +531,17 @@ function updateNextButtonVisibility() {
     if (label) {
       label.textContent = "Report";
     }
-    nextButton.hidden = !observationState.selectedBehaviourIds.length;
+    nextButton.hidden = !hasBehaviourSelectionForAllTracks();
     return;
   }
 
   if (label) {
-    label.textContent = observationState.layer === "elements" ? "Continue" : "Next";
+    label.textContent = "Next";
+  }
+
+  if (observationState.layer === "elements") {
+    nextButton.hidden = !getSelectedElementIds().length;
+    return;
   }
 
   nextButton.hidden = !getSelectedEntityId();
@@ -462,53 +561,95 @@ function getSelectedSubDomain() {
 }
 
 function buildOptionHint(layer, item) {
-  if (layer === "domains") {
-    const hasSubDomains = Array.isArray(item.subDomains) && item.subDomains.length > 0;
-    if (hasSubDomains) {
-      return "Tap to explore focus areas";
-    }
-    return "Tap to explore elements";
-  }
-
-  if (layer === "subdomains") {
-    return "Tap to view elements";
-  }
-
-  return "Tap to view behaviour options";
+  return "";
 }
 
 function getSelectedElement() {
+  const selectedIds = getSelectedElementIds();
+  const selectedId = observationState.selectedElementId || selectedIds[0] || "";
   const subDomain = getSelectedSubDomain();
   if (subDomain && Array.isArray(subDomain.elements)) {
-    return subDomain.elements.find((item) => item.id === observationState.selectedElementId) || null;
+    return subDomain.elements.find((item) => item.id === selectedId) || null;
   }
   const domain = getSelectedDomain();
   if (domain && Array.isArray(domain.elements)) {
-    return domain.elements.find((item) => item.id === observationState.selectedElementId) || null;
+    return domain.elements.find((item) => item.id === selectedId) || null;
   }
   return null;
 }
 
-function createSelectionOption(layer, item, selectedId) {
+function getSelectedElements() {
+  const selectedIds = getSelectedElementIds();
+  if (!selectedIds.length) {
+    return [];
+  }
+  const subDomain = getSelectedSubDomain();
+  const pool = Array.isArray(subDomain?.elements)
+    ? subDomain.elements
+    : (Array.isArray(getSelectedDomain()?.elements) ? getSelectedDomain().elements : []);
+  return selectedIds
+    .map((id) => pool.find((item) => item.id === id))
+    .filter((item) => Boolean(item));
+}
+
+function getBehavioursForElement(elementId) {
+  const element = getSelectedElements().find((item) => item.id === elementId);
+  return element && Array.isArray(element.behaviours) ? element.behaviours : [];
+}
+
+function getSelectedBehaviourByElement(elementId) {
+  if (!elementId) {
+    return "";
+  }
+  const map = observationState.selectedBehaviourByElement;
+  if (!map || typeof map !== "object") {
+    return "";
+  }
+  return typeof map[elementId] === "string" ? map[elementId] : "";
+}
+
+function syncSelectedBehaviourIdsFromTracks() {
+  const selectedIds = getSelectedElementIds()
+    .map((elementId) => getSelectedBehaviourByElement(elementId))
+    .filter((id) => typeof id === "string" && id);
+  observationState.selectedBehaviourIds = [...new Set(selectedIds)];
+  if (!observationState.selectedBehaviourIds.includes(observationState.focusedBehaviourId)) {
+    observationState.focusedBehaviourId = observationState.selectedBehaviourIds[0] || "";
+  }
+}
+
+function hasBehaviourSelectionForAllTracks() {
+  const elementIds = getSelectedElementIds();
+  if (!elementIds.length) {
+    return false;
+  }
+  return elementIds.every((elementId) => Boolean(getSelectedBehaviourByElement(elementId)));
+}
+
+function createSelectionOption(layer, item, selectedValue) {
   const button = document.createElement("button");
-  const isSelected = item.id === selectedId;
+  const selectedIds = Array.isArray(selectedValue) ? selectedValue : [];
+  const isSelected = layer === "elements"
+    ? selectedIds.includes(item.id)
+    : item.id === selectedValue;
 
   button.className = "selection-option";
   button.type = "button";
   button.dataset.itemId = item.id;
-  button.setAttribute("aria-label", `Choose ${item.name}`);
+  button.setAttribute("aria-label", isSelected ? `Remove ${item.name}` : `Choose ${item.name}`);
 
   if (isSelected) {
     button.classList.add("is-selected");
   }
 
+  const optionHint = buildOptionHint(layer, item);
   button.innerHTML = `
     <span class="selection-option__mark" aria-hidden="true">
       <i class="fa-solid ${isSelected ? "fa-check" : "fa-question"}"></i>
     </span>
     <span class="selection-option__content">
       <span class="selection-option__title">${item.name}</span>
-      <span class="selection-option__hint">${buildOptionHint(layer, item)}</span>
+      ${optionHint ? `<span class="selection-option__hint">${optionHint}</span>` : ""}
     </span>
   `;
 
@@ -593,7 +734,7 @@ function buildOptionOverview(layer, item) {
   }
 
   if (layer === "behaviours") {
-    return "Use the pin button to add this behaviour level to your observation.";
+    return "Choose the behaviour level that best matches this observation.";
   }
 
   return stripHtml(item.summary || item.description) || "Tap next to continue through the observation flow.";
@@ -627,7 +768,7 @@ function updateTipFromSelection(layer, item) {
     const details = stripHtml(item.summary || item.description);
     const overview = buildOptionOverview(layer, item);
     if (layer === "behaviours") {
-      body.textContent = details || overview;
+      body.textContent = details || "";
     } else {
       body.textContent = details ? `${details} ${overview}` : overview;
     }
@@ -655,7 +796,7 @@ function updateSelectionHeader() {
     if (eyebrow) {
       eyebrow.textContent = "Step 3";
     }
-    title.textContent = "Choose an element";
+    title.textContent = "Choose element(s)";
   } else if (observationState.layer === "behaviours") {
     if (eyebrow) {
       eyebrow.textContent = "Step 4";
@@ -681,7 +822,7 @@ function renderBreadcrumbs() {
 
   const domain = getSelectedDomain();
   const subDomain = getSelectedSubDomain();
-  const element = getSelectedElement();
+  const elements = getSelectedElements();
   const chips = [];
 
   if (domain?.name) {
@@ -690,8 +831,13 @@ function renderBreadcrumbs() {
   if (subDomain?.name) {
     chips.push({ stepId: "subdomains", label: subDomain.name });
   }
-  if (element?.name) {
-    chips.push({ stepId: "elements", label: element.name });
+  if (elements.length > 0) {
+    const firstLabel = elements[0]?.name || "";
+    const extraCount = Math.max(elements.length - 1, 0);
+    chips.push({
+      stepId: "elements",
+      label: extraCount > 0 ? `${firstLabel} +${extraCount}` : firstLabel
+    });
   }
 
   if (!chips.length) {
@@ -716,33 +862,29 @@ function updateObservationContextTitle() {
     return;
   }
 
-  const domain = getSelectedDomain();
-  const subDomain = getSelectedSubDomain();
-  const element = getSelectedElement();
-
   if (observationState.layer === "behaviours") {
-    title.textContent = element?.name || subDomain?.name || domain?.name || "Choose a behaviour";
+    title.textContent = "Choose behaviours";
     return;
   }
-
   if (observationState.layer === "elements") {
-    title.textContent = subDomain?.name || domain?.name || "Choose an element";
+    title.textContent = "Choose elements";
     return;
   }
-
   if (observationState.layer === "subdomains") {
-    title.textContent = domain?.name || "Choose a subdomain";
+    title.textContent = "Choose a subdomain";
     return;
   }
-
-  title.textContent = domain?.name || "New observation";
+  title.textContent = "New observation";
 }
 
 function persistObservationDraft() {
   localStorage.setItem(DRAFT_DOMAIN_KEY, observationState.selectedDomainId || "");
   localStorage.setItem(DRAFT_SUBDOMAIN_KEY, observationState.selectedSubDomainId || "");
-  localStorage.setItem(DRAFT_ELEMENT_KEY, observationState.selectedElementId || "");
-  localStorage.setItem(DRAFT_BEHAVIOUR_KEY, JSON.stringify(observationState.selectedBehaviourIds || []));
+  localStorage.setItem(DRAFT_ELEMENT_KEY, JSON.stringify(getSelectedElementIds()));
+  localStorage.setItem(DRAFT_BEHAVIOUR_KEY, JSON.stringify({
+    byElement: observationState.selectedBehaviourByElement || {},
+    ids: observationState.selectedBehaviourIds || []
+  }));
 }
 
 function clearObservationDraft() {
@@ -754,9 +896,43 @@ function clearObservationDraft() {
   localStorage.removeItem(ACTIVE_JOURNEY_KEY);
 }
 
-function readDraftBehaviourIds() {
+function readDraftBehaviourState() {
+  const empty = { ids: [], byElement: {} };
   try {
     const raw = localStorage.getItem(DRAFT_BEHAVIOUR_KEY);
+    if (!raw) {
+      return empty;
+    }
+    if (raw.trim().startsWith("[") === false) {
+      if (raw.trim().startsWith("{")) {
+        const parsedObject = JSON.parse(raw);
+        const byElementRaw = parsedObject?.byElement && typeof parsedObject.byElement === "object"
+          ? parsedObject.byElement
+          : parsedObject;
+        const byElement = Object.fromEntries(
+          Object.entries(byElementRaw || {}).filter(([key, value]) =>
+            typeof key === "string" && key && typeof value === "string" && value
+          )
+        );
+        const ids = Array.isArray(parsedObject?.ids)
+          ? parsedObject.ids.filter((id) => typeof id === "string" && id)
+          : Object.values(byElement);
+        return { ids: [...new Set(ids)], byElement };
+      }
+      const ids = [raw.trim()].filter(Boolean);
+      return { ids, byElement: {} };
+    }
+    const parsed = JSON.parse(raw);
+    const ids = Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string" && id) : [];
+    return { ids, byElement: {} };
+  } catch (error) {
+    return empty;
+  }
+}
+
+function readDraftElementIds() {
+  try {
+    const raw = localStorage.getItem(DRAFT_ELEMENT_KEY);
     if (!raw) {
       return [];
     }
@@ -798,6 +974,22 @@ function getJourneyState(journey) {
     : Array.isArray(legacyPath.behaviourIds)
       ? legacyPath.behaviourIds
       : [];
+  const rawBehaviourByElement = selection.behaviourByElement && typeof selection.behaviourByElement === "object"
+    ? selection.behaviourByElement
+    : (legacyPath.behaviourByElement && typeof legacyPath.behaviourByElement === "object"
+      ? legacyPath.behaviourByElement
+      : {});
+  const behaviourByElement = Object.fromEntries(
+    Object.entries(rawBehaviourByElement).filter(([elementId, behaviourId]) =>
+      typeof elementId === "string" && elementId && typeof behaviourId === "string" && behaviourId
+    )
+  );
+  const behaviourIdsFromMap = Object.values(behaviourByElement);
+  const rawElementIds = Array.isArray(selection.elementIds)
+    ? selection.elementIds
+    : Array.isArray(legacyPath.elementIds)
+      ? legacyPath.elementIds
+      : (selection.elementId || legacyPath.elementId ? [selection.elementId || legacyPath.elementId] : []);
 
   const currentStep = normaliseStepId(state.currentStep || safeJourney.currentStep || DEFAULT_STEP_ID);
   const layerFromStep = FLOW_STEPS.includes(currentStep) ? currentStep : "behaviours";
@@ -813,9 +1005,13 @@ function getJourneyState(journey) {
       domainId: selection.domainId || legacyPath.domainId || "",
       subDomainId: selection.subDomainId || legacyPath.subDomainId || "",
       elementId: selection.elementId || legacyPath.elementId || "",
+      elementIds: rawElementIds.filter((id) => typeof id === "string" && id),
       behaviourId: selection.behaviourId || legacyPath.behaviourId || "",
+      behaviourByElement,
       behaviourIds: rawBehaviourIds
         .filter((id) => typeof id === "string" && id)
+        .concat(behaviourIdsFromMap)
+        .filter((id, index, list) => list.indexOf(id) === index)
     }
   };
 }
@@ -824,8 +1020,11 @@ function restoreDraftFromJourney(journey) {
   const state = getJourneyState(journey);
   localStorage.setItem(DRAFT_DOMAIN_KEY, state.selection.domainId || "");
   localStorage.setItem(DRAFT_SUBDOMAIN_KEY, state.selection.subDomainId || "");
-  localStorage.setItem(DRAFT_ELEMENT_KEY, state.selection.elementId || "");
-  localStorage.setItem(DRAFT_BEHAVIOUR_KEY, JSON.stringify(state.selection.behaviourIds || []));
+  localStorage.setItem(DRAFT_ELEMENT_KEY, JSON.stringify(state.selection.elementIds || []));
+  localStorage.setItem(DRAFT_BEHAVIOUR_KEY, JSON.stringify({
+    byElement: state.selection.behaviourByElement || {},
+    ids: state.selection.behaviourIds || []
+  }));
   localStorage.setItem(DRAFT_CHILD_NAME_KEY, state.childName || "");
   return state;
 }
@@ -837,7 +1036,10 @@ function resolveResumeStepId(state) {
 
   const hasDomain = Boolean(state.selection.domainId);
   const hasSubDomain = Boolean(state.selection.subDomainId);
-  const hasElement = Boolean(state.selection.elementId);
+  const hasElement = Boolean(
+    state.selection.elementId ||
+    (Array.isArray(state.selection.elementIds) && state.selection.elementIds.length > 0)
+  );
   const hasBehaviour = Boolean(
     state.selection.behaviourId ||
     (Array.isArray(state.selection.behaviourIds) && state.selection.behaviourIds.length > 0)
@@ -882,28 +1084,32 @@ function openJourneySession(journeyId) {
 function buildJourneyPatch() {
   const domain = getSelectedDomain();
   const subDomain = getSelectedSubDomain();
-  const selectedElement =
-    (subDomain?.elements || domain?.elements || []).find(
-      (item) => item.id === observationState.selectedElementId
-    ) || null;
+  const selectedElements = getSelectedElements();
+  const selectedElement = selectedElements[0] || null;
+  const selectedElementBehaviours = selectedElements
+    .flatMap((element) => (Array.isArray(element.behaviours) ? element.behaviours : []))
+    .filter((behaviour, index, list) => behaviour?.id && list.findIndex((item) => item.id === behaviour.id) === index);
   const selectedBehaviour =
-    (selectedElement?.behaviours || []).find(
+    selectedElementBehaviours.find(
       (item) => item.id === observationState.focusedBehaviourId
     ) || null;
   const selectedEntityId = getSelectedEntityId();
   const selectedForLayer = optionsForCurrentLayer().find((item) => item.id === selectedEntityId) || null;
   const childName = (localStorage.getItem(DRAFT_CHILD_NAME_KEY) || "").trim();
 
-  const pinnedBehaviours = (selectedElement?.behaviours || []).filter((item) =>
+  const behaviourPool = selectedElementBehaviours;
+  const selectedBehaviours = behaviourPool.filter((item) =>
     observationState.selectedBehaviourIds.includes(item.id)
   );
 
   const selection = {
     domainId: observationState.selectedDomainId || "",
     subDomainId: observationState.selectedSubDomainId || "",
-    elementId: observationState.selectedElementId || "",
+    elementId: observationState.selectedElementId || getSelectedElementIds()[0] || "",
+    elementIds: getSelectedElementIds(),
     behaviourId: observationState.focusedBehaviourId || "",
-    behaviourIds: observationState.selectedBehaviourIds.slice()
+    behaviourIds: observationState.selectedBehaviourIds.slice(),
+    behaviourByElement: { ...(observationState.selectedBehaviourByElement || {}) }
   };
 
   const currentStep = normaliseStepId(
@@ -941,11 +1147,14 @@ function buildJourneyPatch() {
       subDomainId: selection.subDomainId,
       subDomainName: subDomain?.name || "",
       elementId: selection.elementId,
+      elementIds: selection.elementIds,
       elementName: selectedElement?.name || "",
+      elementNames: selectedElements.map((item) => item.name),
       behaviourId: selection.behaviourId,
       behaviourName: selectedBehaviour?.name || "",
+      behaviourByElement: selection.behaviourByElement,
       behaviourIds: selection.behaviourIds,
-      behaviourNames: pinnedBehaviours.map((item) => item.name)
+      behaviourNames: selectedBehaviours.map((item) => item.name)
     }
   };
 }
@@ -1089,8 +1298,19 @@ function openDeleteSessionDialog(session) {
 
 function optionsForCurrentLayer() {
   if (observationState.layer === "behaviours") {
-    const element = getSelectedElement();
-    return element && Array.isArray(element.behaviours) ? element.behaviours : [];
+    const behaviours = getSelectedElements()
+      .flatMap((element) => (Array.isArray(element.behaviours) ? element.behaviours : []));
+    if (!behaviours.length) {
+      return [];
+    }
+    const seen = new Set();
+    return behaviours.filter((item) => {
+      if (!item?.id || seen.has(item.id)) {
+        return false;
+      }
+      seen.add(item.id);
+      return true;
+    });
   }
 
   if (observationState.layer === "subdomains") {
@@ -1111,49 +1331,72 @@ function optionsForCurrentLayer() {
 }
 
 function selectedIdForCurrentLayer() {
+  if (observationState.layer === "elements") {
+    return getSelectedElementIds();
+  }
   return getSelectedEntityId();
 }
 
 function applySelection(layer, item) {
+  let tipItem = item;
+
   if (layer === "domains") {
     observationState.selectedDomainId = item.id;
     observationState.selectedSubDomainId = "";
     observationState.selectedElementId = "";
+    observationState.selectedElementIds = [];
     observationState.focusedBehaviourId = "";
     observationState.selectedBehaviourIds = [];
-    behaviourCarouselIndex = 0;
+    observationState.selectedBehaviourByElement = {};
+    behaviourCarouselIndexByElement = {};
   } else if (layer === "subdomains") {
     observationState.selectedSubDomainId = item.id;
     observationState.selectedElementId = "";
+    observationState.selectedElementIds = [];
     observationState.focusedBehaviourId = "";
     observationState.selectedBehaviourIds = [];
-    behaviourCarouselIndex = 0;
+    observationState.selectedBehaviourByElement = {};
+    behaviourCarouselIndexByElement = {};
   } else if (layer === "elements") {
-    observationState.selectedElementId = item.id;
+    const selectedIds = getSelectedElementIds();
+    if (selectedIds.includes(item.id)) {
+      observationState.selectedElementIds = selectedIds.filter((id) => id !== item.id);
+      observationState.selectedElementId = observationState.selectedElementIds[0] || "";
+      tipItem = getSelectedElement();
+    } else {
+      observationState.selectedElementIds = [...selectedIds, item.id];
+      observationState.selectedElementId = item.id;
+    }
     observationState.focusedBehaviourId = "";
     observationState.selectedBehaviourIds = [];
-    behaviourCarouselIndex = 0;
+    observationState.selectedBehaviourByElement = {};
+    behaviourCarouselIndexByElement = {};
   } else {
     observationState.focusedBehaviourId = item.id;
   }
 
   persistObservationDraft();
-  updateTipFromSelection(layer, item);
+  if (tipItem) {
+    updateTipFromSelection(layer, tipItem);
+  } else {
+    renderHelpTip();
+  }
   updateNextButtonVisibility();
   upsertActiveJourney();
+  renderStepper();
 }
 
-function setBehaviourCarouselIndex(nextIndex) {
-  const behaviours = optionsForCurrentLayer();
+function setBehaviourCarouselIndexForElement(elementId, nextIndex) {
+  const behaviours = getBehavioursForElement(elementId);
   if (!Array.isArray(behaviours) || behaviours.length === 0) {
-    behaviourCarouselIndex = 0;
+    behaviourCarouselIndexByElement[elementId] = 0;
     return;
   }
   const length = behaviours.length;
-  behaviourCarouselIndex = ((nextIndex % length) + length) % length;
+  behaviourCarouselIndexByElement[elementId] = ((nextIndex % length) + length) % length;
 }
 
-function createBehaviourCard(behaviour, index, total, options = {}) {
+function createBehaviourCard(behaviour, elementId, options = {}) {
   if (!behaviour) {
     const fallback = document.createElement("article");
     fallback.className = "behaviour-card";
@@ -1165,35 +1408,26 @@ function createBehaviourCard(behaviour, index, total, options = {}) {
   }
 
   const card = document.createElement("article");
-  const isSelected = observationState.selectedBehaviourIds.includes(behaviour.id);
+  const isSelected = getSelectedBehaviourByElement(elementId) === behaviour.id;
   const behaviourSentence = firstSentence(behaviour.description);
-  card.className = `behaviour-card${isSelected ? " is-pinned" : ""}`;
+  card.className = `behaviour-card${isSelected ? " is-selected" : ""}`;
 
   card.innerHTML = `
+    <h4 class="behaviour-card__title">${behaviour.name}</h4>
     <p class="behaviour-card__description">${truncateText(behaviourSentence, 120)}</p>
-    <button class="behaviour-card__select ${isSelected ? "is-selected" : ""}" type="button" aria-label="${isSelected ? `Pinned ${behaviour.name}` : `Pin ${behaviour.name}`}">
-      <i class="fa-solid fa-thumbtack" aria-hidden="true"></i>
-    </button>
   `;
-
-  const selectButton = card.querySelector(".behaviour-card__select");
-  selectButton?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    observationState.focusedBehaviourId = behaviour.id;
-    if (observationState.selectedBehaviourIds.includes(behaviour.id)) {
-      observationState.selectedBehaviourIds = observationState.selectedBehaviourIds.filter((id) => id !== behaviour.id);
-    } else {
-      observationState.selectedBehaviourIds = [...observationState.selectedBehaviourIds, behaviour.id];
-    }
-    persistObservationDraft();
-    upsertActiveJourney();
-    updateTipFromSelection("behaviours", behaviour);
-    renderCurrentLayerOptions();
-  });
 
   card.addEventListener("click", () => {
     observationState.focusedBehaviourId = behaviour.id;
+    observationState.selectedBehaviourByElement = {
+      ...(observationState.selectedBehaviourByElement || {}),
+      [elementId]: behaviour.id
+    };
+    syncSelectedBehaviourIdsFromTracks();
+    persistObservationDraft();
+    upsertActiveJourney();
     updateTipFromSelection("behaviours", behaviour);
+    renderStepper();
     if (options.onFocus) {
       options.onFocus();
       return;
@@ -1204,38 +1438,41 @@ function createBehaviourCard(behaviour, index, total, options = {}) {
   return card;
 }
 
-function renderBehaviourCarousel() {
-  const list = document.getElementById("domain-options");
-  if (!list) {
-    return;
-  }
+function renderBehaviourTrack(element) {
+  const behaviours = Array.isArray(element?.behaviours) ? element.behaviours : [];
+  const wrapper = document.createElement("section");
+  wrapper.className = "behaviour-track";
+  const heading = document.createElement("h4");
+  heading.className = "behaviour-track__label";
+  heading.textContent = element?.name || "Element";
+  wrapper.append(heading);
 
-  const behaviours = optionsForCurrentLayer();
   if (behaviours.length === 0) {
-    list.replaceChildren();
-    return;
+    const empty = document.createElement("p");
+    empty.className = "behaviour-track__empty";
+    empty.textContent = "No behaviours available for this element yet.";
+    wrapper.append(empty);
+    return wrapper;
   }
 
-  const selectedIndex = behaviours.findIndex((item) => item.id === observationState.focusedBehaviourId);
-  if (!Number.isInteger(behaviourCarouselIndex) || behaviourCarouselIndex >= behaviours.length) {
-    behaviourCarouselIndex = selectedIndex >= 0 ? selectedIndex : 0;
+  const selectedBehaviourId = getSelectedBehaviourByElement(element.id);
+  const selectedIndex = behaviours.findIndex((item) => item.id === selectedBehaviourId);
+  if (!Number.isInteger(behaviourCarouselIndexByElement[element.id]) ||
+    behaviourCarouselIndexByElement[element.id] >= behaviours.length) {
+    behaviourCarouselIndexByElement[element.id] = selectedIndex >= 0 ? selectedIndex : 0;
   }
-  setBehaviourCarouselIndex(behaviourCarouselIndex);
-
-  const active = behaviours[behaviourCarouselIndex] || behaviours[0];
-  if (!active) {
-    list.replaceChildren();
-    return;
-  }
+  setBehaviourCarouselIndexForElement(element.id, behaviourCarouselIndexByElement[element.id]);
+  const activeIndex = behaviourCarouselIndexByElement[element.id];
+  const active = behaviours[activeIndex] || behaviours[0];
   const total = behaviours.length;
-  const farPrevIndex = (behaviourCarouselIndex - 2 + total) % total;
-  const prevIndex = (behaviourCarouselIndex - 1 + total) % total;
-  const nextIndex = (behaviourCarouselIndex + 1) % total;
-  const farNextIndex = (behaviourCarouselIndex + 2) % total;
+  const farPrevIndex = (activeIndex - 2 + total) % total;
+  const prevIndex = (activeIndex - 1 + total) % total;
+  const nextIndex = (activeIndex + 1) % total;
+  const farNextIndex = (activeIndex + 2) % total;
   const root = document.createElement("div");
   root.className = "behaviour-carousel";
   root.innerHTML = `
-    <button class="behaviour-carousel__nav" type="button" aria-label="Previous behaviour">
+    <button class="behaviour-carousel__nav" type="button" aria-label="Previous behaviour for ${element.name}">
       <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
     </button>
     <div class="behaviour-carousel__viewport">
@@ -1247,7 +1484,7 @@ function renderBehaviourCarousel() {
         <div class="behaviour-carousel__item behaviour-carousel__item--far-next"></div>
       </div>
     </div>
-    <button class="behaviour-carousel__nav" type="button" aria-label="Next behaviour">
+    <button class="behaviour-carousel__nav" type="button" aria-label="Next behaviour for ${element.name}">
       <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
     </button>
   `;
@@ -1260,21 +1497,22 @@ function renderBehaviourCarousel() {
   const nextSlot = root.querySelector(".behaviour-carousel__item--next");
   const farNextSlot = root.querySelector(".behaviour-carousel__item--far-next");
 
-  farPrevSlot?.append(createBehaviourCard(behaviours[farPrevIndex], farPrevIndex, total));
-  prevSlot?.append(createBehaviourCard(behaviours[prevIndex], prevIndex, total, {
+  farPrevSlot?.append(createBehaviourCard(behaviours[farPrevIndex], element.id));
+  prevSlot?.append(createBehaviourCard(behaviours[prevIndex], element.id, {
     onFocus: () => slideTo(-1)
   }));
-  activeSlot?.append(createBehaviourCard(active, behaviourCarouselIndex, total));
-  nextSlot?.append(createBehaviourCard(behaviours[nextIndex], nextIndex, total, {
+  activeSlot?.append(createBehaviourCard(active, element.id));
+  nextSlot?.append(createBehaviourCard(behaviours[nextIndex], element.id, {
     onFocus: () => slideTo(1)
   }));
-  farNextSlot?.append(createBehaviourCard(behaviours[farNextIndex], farNextIndex, total));
+  farNextSlot?.append(createBehaviourCard(behaviours[farNextIndex], element.id));
 
+  let isSliding = false;
   const slideTo = (direction) => {
-    if (!track || behaviourIsSliding) {
+    if (!track || isSliding) {
       return;
     }
-    behaviourIsSliding = true;
+    isSliding = true;
     track.classList.add(direction > 0 ? "is-slide-next" : "is-slide-prev");
     let settled = false;
 
@@ -1283,10 +1521,8 @@ function renderBehaviourCarousel() {
         return;
       }
       settled = true;
-      behaviourIsSliding = false;
-      setBehaviourCarouselIndex(behaviourCarouselIndex + direction);
-      const behavioursNow = optionsForCurrentLayer();
-      observationState.focusedBehaviourId = behavioursNow[behaviourCarouselIndex]?.id || "";
+      isSliding = false;
+      setBehaviourCarouselIndexForElement(element.id, behaviourCarouselIndexByElement[element.id] + direction);
       renderCurrentLayerOptions();
     };
 
@@ -1297,7 +1533,7 @@ function renderBehaviourCarousel() {
 
     track.addEventListener("transitionend", onTransitionEnd, { once: true });
     window.setTimeout(() => {
-      if (behaviourIsSliding) {
+      if (isSliding) {
         complete();
       }
     }, 320);
@@ -1347,9 +1583,30 @@ function renderBehaviourCarousel() {
     onSwipeEnd(touch.clientX);
   });
 
-  list.replaceChildren(root);
-  const focused = behaviours.find((item) => item.id === observationState.focusedBehaviourId) || active;
-  updateTipFromSelection("behaviours", focused);
+  wrapper.append(root);
+  return wrapper;
+}
+
+function renderBehaviourTracks() {
+  const list = document.getElementById("domain-options");
+  if (!list) {
+    return;
+  }
+
+  const elements = getSelectedElements();
+  if (!elements.length) {
+    list.replaceChildren();
+    return;
+  }
+  const tracks = elements.map((element) => renderBehaviourTrack(element));
+  list.replaceChildren(...tracks);
+  const focused =
+    optionsForCurrentLayer().find((item) => item.id === observationState.focusedBehaviourId) ||
+    optionsForCurrentLayer().find((item) => observationState.selectedBehaviourIds.includes(item.id)) ||
+    null;
+  if (focused) {
+    updateTipFromSelection("behaviours", focused);
+  }
 }
 
 function renderCurrentLayerOptions() {
@@ -1357,13 +1614,13 @@ function renderCurrentLayerOptions() {
   if (!list) {
     return;
   }
+  list.dataset.layer = observationState.layer;
 
   updateSelectionHeader();
   updateObservationContextTitle();
   updateHelperFigure(currentStepFromLayer(observationState.layer));
-  renderBreadcrumbs();
   if (observationState.layer === "behaviours") {
-    renderBehaviourCarousel();
+    renderBehaviourTracks();
     updateNextButtonVisibility();
     return;
   }
@@ -1415,7 +1672,7 @@ function goToNextLayer() {
   }
 
   if (observationState.layer === "elements") {
-    if (!observationState.selectedElementId) {
+    if (!getSelectedElementIds().length) {
       return;
     }
 
@@ -1429,7 +1686,7 @@ function goToNextLayer() {
   }
 
   if (observationState.layer === "behaviours") {
-    if (!observationState.selectedBehaviourIds.length) {
+    if (!hasBehaviourSelectionForAllTracks()) {
       return;
     }
 
@@ -1490,21 +1747,37 @@ async function initObservationFlow() {
     const journeyState = getJourneyState(activeJourney);
     const draftDomain = localStorage.getItem(DRAFT_DOMAIN_KEY) || journeyState.selection.domainId || "";
     const draftSubDomain = localStorage.getItem(DRAFT_SUBDOMAIN_KEY) || journeyState.selection.subDomainId || "";
-    const draftElement = localStorage.getItem(DRAFT_ELEMENT_KEY) || journeyState.selection.elementId || "";
-    const draftBehaviours = readDraftBehaviourIds();
+    const draftElements = readDraftElementIds();
+    const fallbackJourneyElements = Array.isArray(journeyState.selection.elementIds)
+      ? journeyState.selection.elementIds.filter((id) => typeof id === "string" && id)
+      : (journeyState.selection.elementId ? [journeyState.selection.elementId] : []);
+    const draftBehaviourState = readDraftBehaviourState();
 
     observationState.selectedDomainId = draftDomain;
     observationState.selectedSubDomainId = draftSubDomain;
-    observationState.selectedElementId = draftElement;
-    observationState.selectedBehaviourIds = draftBehaviours.length
-      ? draftBehaviours
+    observationState.selectedElementIds = draftElements.length ? draftElements : fallbackJourneyElements;
+    observationState.selectedElementId = observationState.selectedElementIds[0] || "";
+    const journeyBehaviourByElement =
+      journeyState.selection.behaviourByElement && typeof journeyState.selection.behaviourByElement === "object"
+        ? journeyState.selection.behaviourByElement
+        : {};
+    const behaviourByElement = Object.keys(draftBehaviourState.byElement).length
+      ? draftBehaviourState.byElement
+      : journeyBehaviourByElement;
+    observationState.selectedBehaviourByElement = { ...behaviourByElement };
+    observationState.selectedBehaviourIds = draftBehaviourState.ids.length
+      ? draftBehaviourState.ids
       : Array.isArray(journeyState.selection.behaviourIds)
-        ? journeyState.selection.behaviourIds
+        ? journeyState.selection.behaviourIds.filter((id) => typeof id === "string" && id)
         : [];
-    observationState.focusedBehaviourId =
-      observationState.selectedBehaviourIds[0] ||
-      journeyState.selection.behaviourId ||
-      "";
+    if (!Object.keys(observationState.selectedBehaviourByElement).length &&
+      observationState.selectedBehaviourIds.length &&
+      observationState.selectedElementIds.length) {
+      observationState.selectedBehaviourByElement[observationState.selectedElementIds[0]] =
+        observationState.selectedBehaviourIds[0];
+    }
+    syncSelectedBehaviourIdsFromTracks();
+    observationState.focusedBehaviourId = observationState.selectedBehaviourIds[0] || journeyState.selection.behaviourId || "";
 
     if (journeyState.childName && !localStorage.getItem(DRAFT_CHILD_NAME_KEY)) {
       localStorage.setItem(DRAFT_CHILD_NAME_KEY, journeyState.childName);
@@ -1512,17 +1785,21 @@ async function initObservationFlow() {
 
     const activeStep = getActiveStepId();
     observationState.layer = FLOW_STEPS.includes(activeStep) ? activeStep : "behaviours";
-    if (observationState.layer === "behaviours" && !observationState.selectedElementId) {
+    if (observationState.layer === "behaviours" && !getSelectedElementIds().length) {
       observationState.layer = "elements";
       setActiveStep("elements");
     }
     if (observationState.layer === "behaviours") {
-      const behaviours = optionsForCurrentLayer();
-      if (!observationState.focusedBehaviourId && behaviours.length > 0) {
-        observationState.focusedBehaviourId = behaviours[0].id;
+      behaviourCarouselIndexByElement = {};
+      for (const element of getSelectedElements()) {
+        const behaviours = Array.isArray(element.behaviours) ? element.behaviours : [];
+        const selectedBehaviourId = getSelectedBehaviourByElement(element.id);
+        const selectedIndex = behaviours.findIndex((item) => item.id === selectedBehaviourId);
+        behaviourCarouselIndexByElement[element.id] = selectedIndex >= 0 ? selectedIndex : 0;
       }
-      const selectedIndex = behaviours.findIndex((item) => item.id === observationState.focusedBehaviourId);
-      setBehaviourCarouselIndex(selectedIndex >= 0 ? selectedIndex : 0);
+      if (!observationState.focusedBehaviourId) {
+        observationState.focusedBehaviourId = observationState.selectedBehaviourIds[0] || "";
+      }
     }
 
     renderCurrentLayerOptions();
@@ -1532,6 +1809,7 @@ async function initObservationFlow() {
     if (selected) {
       updateTipFromSelection(observationState.layer, selected);
     }
+    renderStepper();
   } catch (error) {
     console.warn("Unable to load domains data:", error);
     const list = document.getElementById("domain-options");
@@ -1639,6 +1917,13 @@ function bindObservationActions() {
   if (backButton) {
     backButton.addEventListener("click", () => {
       goToPreviousLayer();
+    });
+  }
+
+  const homeButton = document.getElementById("observation-home-button");
+  if (homeButton) {
+    homeButton.addEventListener("click", () => {
+      window.location.href = "index.html";
     });
   }
 }
