@@ -1,44 +1,73 @@
 {
+  "home": {
+    "title": "Start strong with one clear observation",
+    "body": "Start a new observation when you notice a meaningful learning moment.",
+    "meaning": "Capturing evidence in the moment helps you make reliable judgements and plan purposeful next steps.",
+    "tip": "Use one specific example of what the child did, said, or showed, then follow the guided pathway.",
+    "reassurance": "You do not need perfect wording to begin. You can refine and update the report at any time.",
+    "icon": "wand_magic_sparkles"
+  },
   "default": {
     "title": "Helpful Tip",
-    "body": "Use the guidance on each page to move through your observation with confidence.",
+    "body": "This tool supports your professional judgement. Focus on what you observed, heard, or noticed in the moment.",
+    "meaning": "The KLPT helps you recognise learning and plan next steps; it is not for scoring or comparing children.",
+    "reassurance": "If more than one option feels close, choose the best fit for now. You can always adjust later.",
+    "tip": "Keep your language descriptive and evidence-based.",
     "icon": "lightbulb"
   },
   "steps": [
     {
       "id": "domains",
       "title": "Choose a focus domain",
-      "body": "Choose the focus domain for this observation.",
+      "body": "Choose the broad area of learning that best connects to what you observed.",
+      "meaning": "Domains group related capabilities and help frame your observation.",
+      "reassurance": "If two domains feel relevant, choose the one that felt most central in this moment.",
+      "tip": "Start with what stood out first.",
       "icon": "lightbulb"
     },
     {
       "id": "subdomains",
       "title": "Narrow the focus",
-      "body": "Choose the subdomain that best matches what you noticed.",
+      "body": "Choose the subdomain that best matches what you observed.",
+      "meaning": "Subdomains refine your focus within the broader area of learning.",
+      "reassurance": "Not every domain includes subdomains. If this step is skipped, continue with confidence.",
+      "tip": "Think about the type of skill the child was using.",
       "icon": "lightbulb"
     },
     {
       "id": "elements",
       "title": "Select key elements",
-      "body": "Pick one or more elements that describe the observed learning.",
+      "body": "Choose one or more elements that describe the observed learning.",
+      "meaning": "Elements represent observable parts of learning within the selected focus.",
+      "reassurance": "It is okay to choose multiple elements when the observation spans more than one area.",
+      "tip": "Select based on direct evidence, not expectations.",
       "icon": "lightbulb"
     },
     {
       "id": "behaviours",
       "title": "Choose behaviours",
-      "body": "Choose one behaviour for each selected element track.",
+      "body": "Choose the closest behaviour match for each selected element.",
+      "meaning": "Behaviours indicate likely points in a learning journey; they are not fixed levels.",
+      "reassurance": "If two behaviours seem close, pick the nearest fit to what the child can do independently.",
+      "tip": "Focus on demonstrated capability in this observation.",
       "icon": "lightbulb"
     },
     {
       "id": "statement",
       "title": "Capture your notes",
-      "body": "Write a short, clear statement about what the child did, said, or showed.",
+      "body": "Write a short, clear note about what the child did, said, or showed.",
+      "meaning": "This captures evidence of learning to support reflection and planning.",
+      "reassurance": "Simple is best; you do not need to analyse in this field.",
+      "tip": "Use observable facts and avoid interpretation.",
       "icon": "lightbulb"
     },
     {
       "id": "review",
       "title": "Review and finish",
-      "body": "Check the pathway and notes, then save or export when you're happy.",
+      "body": "Review your selections and notes, then save or export when ready.",
+      "meaning": "This step helps consolidate evidence and identify meaningful next teaching responses.",
+      "reassurance": "Your report is a living record and can be revisited.",
+      "tip": "Check that your evidence, behaviour choices, and next ideas align.",
       "icon": "lightbulb"
     }
   ]

@@ -1155,7 +1155,7 @@ body[data-page="home"] .tip-card__title {
 body[data-page="observation"] .tip-card__body,
 body[data-page="home"] .tip-card__body {
   font-size: clamp(1rem, 1.75vw, 1.2rem);
-  line-height: 1.58;
+  line-height: 1.42;
 }
 
 body[data-page="observation"] .start-button[hidden] {

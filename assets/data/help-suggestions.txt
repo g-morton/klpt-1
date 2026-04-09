@@ -1,0 +1,109 @@
+{
+  "default": {
+    "title": "Helpful Tip",
+    "body": "This tool supports your professional judgement. Focus on what you observed — there is no single ‘correct’ pathway.",
+    "meaning": "The KLPT is a formative tool. It helps you recognise learning and consider next steps, not compare or score children.",
+    "reassurance": "If something doesn’t fit perfectly, choose the closest match and trust your observation.",
+    "icon": "lightbulb"
+  },
+
+  "philosophy": {
+    "title": "How to use this tool",
+    "body": "The KLPT supports you to gather, interpret, and respond to children’s learning through observation.",
+    "points": [
+      "Focus on what the child did, said, or showed",
+      "There is no ‘correct’ level or endpoint",
+      "Use this tool to support planning, not comparison",
+      "Learning is not linear — movement between behaviours is expected"
+    ]
+  },
+
+  "observation": {
+    "title": "What to look for",
+    "points": [
+      "What did the child say or do?",
+      "What support (if any) was needed?",
+      "Was this familiar or new for the child?",
+      "How did they respond to challenge or change?"
+    ]
+  },
+
+  "progression": {
+    "title": "Understanding progressions",
+    "body": "The behaviours describe how learning typically develops over time.",
+    "points": [
+      "Children may move forward and backward across behaviours",
+      "Use nearby behaviours to understand context, not to compare",
+      "Each child’s learning journey is unique"
+    ]
+  },
+
+  "nextSteps": {
+    "title": "Using this for planning",
+    "points": [
+      "Use the selected behaviour to guide your teaching response",
+      "Look to the next behaviour for possible learning opportunities",
+      "Plan experiences that build on current strengths"
+    ]
+  },
+
+  "inclusion": {
+    "title": "Inclusive practice",
+    "points": [
+      "Consider the child’s cultural and linguistic context",
+      "Value home language and different communication styles",
+      "Adapt your interpretation for children with additional needs"
+    ]
+  },
+
+  "steps": [
+    {
+      "id": "domains",
+      "title": "Choose a focus domain",
+      "body": "Choose the broad area of learning that best connects to your observation.",
+      "meaning": "Domains group related skills to help you frame what you noticed.",
+      "reassurance": "If more than one domain seems relevant, choose the one that feels most central.",
+      "tip": "Start with what stood out most in the moment."
+    },
+    {
+      "id": "subdomains",
+      "title": "Narrow the focus",
+      "body": "Choose the subdomain that best matches what you observed.",
+      "meaning": "Subdomains help refine your focus within a broader area of learning.",
+      "reassurance": "Not all domains have subdomains — if you don’t see this step, just keep going.",
+      "tip": "Think about the type of skill the child was using."
+    },
+    {
+      "id": "elements",
+      "title": "Select key elements",
+      "body": "Choose one or more elements that describe the observed learning.",
+      "meaning": "Elements represent observable aspects of the skill.",
+      "reassurance": "It’s okay to select more than one if the observation spans multiple areas.",
+      "tip": "Choose based on what you actually saw, not what you expected."
+    },
+    {
+      "id": "behaviours",
+      "title": "Choose behaviours",
+      "body": "Choose the behaviour that best reflects what you observed.",
+      "meaning": "These behaviours describe how learning develops over time. You are identifying a point in the learning journey, not assigning a level.",
+      "reassurance": "It’s okay if more than one feels relevant — choose the closest match.",
+      "tip": "Focus on what the child can do independently."
+    },
+    {
+      "id": "statement",
+      "title": "Capture your notes",
+      "body": "Write a short, clear statement about what the child did, said, or showed.",
+      "meaning": "This captures evidence of learning to support reflection and planning.",
+      "reassurance": "Keep it simple — you don’t need to explain or analyse here.",
+      "tip": "Stick to observable facts rather than interpretation."
+    },
+    {
+      "id": "review",
+      "title": "Review and finish",
+      "body": "Check your selections and notes, then save or export when you're ready.",
+      "meaning": "This is a chance to reflect on the observation as a whole.",
+      "reassurance": "You can always revisit and adjust later — this is a living record.",
+      "tip": "Consider what this suggests about next steps in learning."
+    }
+  ]
+}

@@ -419,11 +419,27 @@ async function renderHelpTip() {
     const helpData = await response.json();
     const activeStepId = getActiveStepId();
     const stepEntry = helpData.steps?.find((step) => step.id === activeStepId);
-    const entry = stepEntry || helpData.default || {};
+    const isHomePage = document.body.dataset.page === "home";
+    const entry = isHomePage
+      ? (helpData.home || helpData.default || stepEntry || {})
+      : (stepEntry || helpData.default || {});
 
-    eyebrow.textContent = toLabel(activeStepId);
+    eyebrow.textContent = isHomePage ? "Home" : toLabel(activeStepId);
     title.textContent = entry.title || "Helpful Tip";
-    body.textContent = entry.body || "";
+    const lead = entry.body ? [entry.body] : [];
+    const support = [];
+    if (entry.meaning) {
+      support.push(`<strong>Why this matters:</strong> ${entry.meaning}`);
+    }
+    if (entry.tip) {
+      support.push(`<strong>Try this:</strong> ${entry.tip}`);
+    }
+    if (entry.reassurance) {
+      support.push(entry.reassurance);
+    }
+    body.innerHTML = support.length
+      ? `${lead.join(" ")}<br><br>${support.join("<br>")}`
+      : lead.join(" ");
     icon.className = iconClassForHelp(entry.icon);
   } catch (error) {
     console.warn("Unable to load help tip data:", error);
@@ -792,22 +808,22 @@ function updateSelectionHeader() {
     if (eyebrow) {
       eyebrow.textContent = "Step 2";
     }
-    title.textContent = "Choose a subdomain";
+    title.textContent = "Narrow the focus";
   } else if (observationState.layer === "elements") {
     if (eyebrow) {
       eyebrow.textContent = "Step 3";
     }
-    title.textContent = "Choose element(s)";
+    title.textContent = "Select key elements";
   } else if (observationState.layer === "behaviours") {
     if (eyebrow) {
       eyebrow.textContent = "Step 4";
     }
-    title.textContent = "Choose a behaviour";
+    title.textContent = "Choose behaviours";
   } else {
     if (eyebrow) {
       eyebrow.textContent = "Step 1";
     }
-    title.textContent = "Choose a domain";
+    title.textContent = "Choose a focus domain";
   }
 
   if (childNameField) {
@@ -868,11 +884,11 @@ function updateObservationContextTitle() {
     return;
   }
   if (observationState.layer === "elements") {
-    title.textContent = "Choose elements";
+    title.textContent = "Select key elements";
     return;
   }
   if (observationState.layer === "subdomains") {
-    title.textContent = "Choose a subdomain";
+    title.textContent = "Narrow the focus";
     return;
   }
   title.textContent = "New observation";
@@ -2314,7 +2330,7 @@ async function initReportPage() {
 
   const cards = [
     createReportCard("What you observed", [overviewLine, behaviourLine]),
-    createReportCard("Detailed breakdown", detailsLines),
+    createReportCard("Detailed evidence", detailsLines),
     createReportCard("Progression ideas", progressionLines, "report-card--progression")
   ];
 
