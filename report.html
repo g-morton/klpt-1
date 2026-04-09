@@ -34,49 +34,67 @@
             </div>
           </header>
 
-          <section class="report-content" id="report-content" aria-live="polite"></section>
+          <section class="report-print-meta report-card" aria-hidden="true">
+            <h2>Observation report</h2>
+            <p id="report-print-observer-row"><strong>Observer:</strong> <span id="report-print-observer"></span></p>
+            <p id="report-print-time-row"><strong>Observation time:</strong> <span id="report-print-time"></span></p>
+          </section>
 
-          <details class="report-notes report-card" aria-labelledby="report-notes-title">
-            <summary class="report-notes__summary">
-              <h2 id="report-notes-title">Additional report details</h2>
-              <span class="report-notes__chevrons" aria-hidden="true">
-                <i class="fa-solid fa-chevron-down report-notes__chevron report-notes__chevron--down"></i>
-                <i class="fa-solid fa-chevron-up report-notes__chevron report-notes__chevron--up"></i>
-              </span>
-            </summary>
-            <div class="report-notes__grid">
-              <label class="report-field" for="report-observer-name">
-                <span>Observer&apos;s name</span>
-                <input id="report-observer-name" name="observerName" type="text" autocomplete="name">
-              </label>
+          <section class="report-content" id="report-content" aria-live="polite">
+            <div id="report-generated"></div>
+            <details class="report-notes report-card" aria-labelledby="report-notes-title">
+              <summary class="report-notes__summary">
+                <h2 id="report-notes-title">Additional report details</h2>
+                <span class="report-notes__chevrons" aria-hidden="true">
+                  <i class="fa-solid fa-chevron-down report-notes__chevron report-notes__chevron--down"></i>
+                  <i class="fa-solid fa-chevron-up report-notes__chevron report-notes__chevron--up"></i>
+                </span>
+              </summary>
+              <div class="report-notes__grid">
+                <label class="report-field" for="report-observer-name">
+                  <span>Observer&apos;s name</span>
+                  <input id="report-observer-name" name="observerName" type="text" autocomplete="name">
+                </label>
 
-              <label class="report-field" for="report-observation-time">
-                <span>Time of observation</span>
-                <input id="report-observation-time" name="observationTime" type="text" autocomplete="off">
-              </label>
+                <label class="report-field" for="report-observation-time">
+                  <span>Time of observation</span>
+                  <input id="report-observation-time" name="observationTime" type="text" autocomplete="off">
+                </label>
 
-              <label class="report-field report-field--full" for="report-extra-evidence">
-                <span>Extra evidence supporting this observation?</span>
-                <textarea id="report-extra-evidence" name="extraEvidence" rows="3"></textarea>
-              </label>
+                <label class="report-field report-field--full" for="report-extra-evidence">
+                  <span>Extra evidence supporting this observation?</span>
+                  <textarea id="report-extra-evidence" name="extraEvidence" rows="3"></textarea>
+                </label>
 
-              <label class="report-field report-field--full" for="report-support-learning">
-                <span>How can you further support this learning?</span>
-                <textarea id="report-support-learning" name="supportLearning" rows="3"></textarea>
-              </label>
-            </div>
-          </details>
+                <label class="report-field report-field--full" for="report-support-learning">
+                  <span>How can you further support this learning?</span>
+                  <textarea id="report-support-learning" name="supportLearning" rows="3"></textarea>
+                </label>
+              </div>
+              <div class="report-notes__print" aria-hidden="true">
+                <p id="report-print-notes-evidence-row"><strong>Extra evidence supporting this observation:</strong> <span id="report-print-notes-evidence"></span></p>
+                <p id="report-print-notes-support-row"><strong>How can you further support this learning:</strong> <span id="report-print-notes-support"></span></p>
+              </div>
+            </details>
 
-          <footer class="report-actions">
-            <button class="report-action-button" id="report-save-pdf-button" type="button">
-              <i class="fa-regular fa-file-pdf" aria-hidden="true"></i>
-              <span>Save to PDF</span>
-            </button>
-            <button class="report-action-button report-action-button--secondary" id="report-print-button" type="button">
-              <i class="fa-solid fa-print" aria-hidden="true"></i>
-              <span>Print this report</span>
-            </button>
-          </footer>
+            <footer class="report-actions">
+              <button class="report-action-button" id="report-save-pdf-button" type="button">
+                <i class="fa-regular fa-file-pdf" aria-hidden="true"></i>
+                <span>Save to PDF</span>
+              </button>
+              <button class="report-action-button report-action-button--secondary" id="report-print-button" type="button">
+                <i class="fa-solid fa-print" aria-hidden="true"></i>
+                <span>Print this report</span>
+              </button>
+            </footer>
+          </section>
+
+          <img
+            class="report-celebration"
+            src="assets/images/helper-5.svg"
+            alt=""
+            aria-hidden="true"
+          >
         </section>
       </div>
     </section>

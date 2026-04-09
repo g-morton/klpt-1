@@ -964,7 +964,7 @@ function toFriendlyDateTimeValue(date) {
 
 function toFriendlyObservationTime(value) {
   if (!value) {
-    return toFriendlyDateTimeValue(new Date());
+    return "";
   }
   const parsed = new Date(value);
   if (!Number.isNaN(parsed.getTime())) {
@@ -2153,7 +2153,7 @@ function initReportNotesForm(journeyId) {
   const stored = getStoredReportNotes(journeyId);
   const initial = {
     observerName: stored.observerName || "",
-    observationTime: toFriendlyObservationTime(stored.observationTime),
+    observationTime: stored.observationTime || toFriendlyDateTimeValue(new Date()),
     extraEvidence: stored.extraEvidence || "",
     supportLearning: stored.supportLearning || ""
   };
@@ -2166,13 +2166,15 @@ function initReportNotesForm(journeyId) {
   saveStoredReportNotes(journeyId, initial);
 
   const persist = () => {
+    const observationTime = observationTimeInput.value.trim();
     saveStoredReportNotes(journeyId, {
       observerName: observerNameInput.value.trim(),
-      observationTime: toFriendlyObservationTime(observationTimeInput.value.trim()),
+      observationTime: observationTime ? toFriendlyObservationTime(observationTime) : "",
       extraEvidence: extraEvidenceInput.value.trim(),
       supportLearning: supportLearningInput.value.trim()
     });
-    observationTimeInput.value = toFriendlyObservationTime(observationTimeInput.value.trim());
+    observationTimeInput.value = observationTime ? toFriendlyObservationTime(observationTime) : "";
+    syncReportPrintText();
   };
 
   observerNameInput.addEventListener("input", persist);
@@ -2180,11 +2182,49 @@ function initReportNotesForm(journeyId) {
   observationTimeInput.addEventListener("blur", persist);
   extraEvidenceInput.addEventListener("input", persist);
   supportLearningInput.addEventListener("input", persist);
+  syncReportPrintText();
+}
+
+function syncReportPrintText() {
+  const observerNameInput = document.getElementById("report-observer-name");
+  const observationTimeInput = document.getElementById("report-observation-time");
+  const extraEvidenceInput = document.getElementById("report-extra-evidence");
+  const supportLearningInput = document.getElementById("report-support-learning");
+  if (!observerNameInput || !observationTimeInput || !extraEvidenceInput || !supportLearningInput) {
+    return;
+  }
+
+  const observationTime = toFriendlyObservationTime(observationTimeInput.value.trim()) || "";
+  const evidence = extraEvidenceInput.value.trim();
+  const support = supportLearningInput.value.trim();
+
+  const topObserver = document.getElementById("report-print-observer");
+  const topTime = document.getElementById("report-print-time");
+  const topObserverRow = document.getElementById("report-print-observer-row");
+  const topTimeRow = document.getElementById("report-print-time-row");
+  const notesEvidence = document.getElementById("report-print-notes-evidence");
+  const notesSupport = document.getElementById("report-print-notes-support");
+  const notesEvidenceRow = document.getElementById("report-print-notes-evidence-row");
+  const notesSupportRow = document.getElementById("report-print-notes-support-row");
+
+  const setPrintRow = (rowEl, valueEl, value) => {
+    if (!rowEl || !valueEl) {
+      return;
+    }
+    const text = typeof value === "string" ? value.trim() : "";
+    rowEl.hidden = !text;
+    valueEl.textContent = text;
+  };
+
+  setPrintRow(topObserverRow, topObserver, observerNameInput.value);
+  setPrintRow(topTimeRow, topTime, observationTime);
+  setPrintRow(notesEvidenceRow, notesEvidence, evidence);
+  setPrintRow(notesSupportRow, notesSupport, support);
 }
 
 async function initReportPage() {
-  const content = document.getElementById("report-content");
-  if (!content) {
+  const generated = document.getElementById("report-generated");
+  if (!generated) {
     return;
   }
 
@@ -2205,6 +2245,7 @@ async function initReportPage() {
   const savePdfButton = document.getElementById("report-save-pdf-button");
   if (savePdfButton) {
     savePdfButton.addEventListener("click", () => {
+      syncReportPrintText();
       window.print();
     });
   }
@@ -2212,6 +2253,7 @@ async function initReportPage() {
   const printButton = document.getElementById("report-print-button");
   if (printButton) {
     printButton.addEventListener("click", () => {
+      syncReportPrintText();
       window.print();
     });
   }
@@ -2231,6 +2273,13 @@ async function initReportPage() {
   const activeJourney = readJourneys().find((journey) => journey.id === activeJourneyId);
   const state = activeJourney ? getJourneyState(activeJourney) : buildStateFromDraft();
   initReportNotesForm(activeJourneyId);
+  window.addEventListener("beforeprint", () => {
+    const notesDetails = document.querySelector(".report-notes");
+    if (notesDetails && "open" in notesDetails) {
+      notesDetails.open = true;
+    }
+    syncReportPrintText();
+  });
   const context = findSelectedContext(domains, state);
   const childName = state.childName || "this child";
   const tracks = collectReportTracks(context, state);
@@ -2269,7 +2318,7 @@ async function initReportPage() {
     createReportCard("Progression ideas", progressionLines, "report-card--progression")
   ];
 
-  content.replaceChildren(...cards);
+  generated.replaceChildren(...cards);
 }
 
 if (document.body.dataset.page === "home") {
