@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Observation Report | Kindergarten Learning Progressions Toolkit</title>
+  <meta name="theme-color" content="#f9f6f3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="KLPT">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+  <link rel="icon" href="assets/images/klpt-logo-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/images/klpt-logo-icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="report" data-step="review">
+  <div class="poc-banner" role="note" aria-label="Proof of concept notice">
+    <span class="poc-banner__text">PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY | PROOF OF CONCEPT ONLY</span>
+  </div>
+  <main class="page-shell">
+    <section class="device-frame" aria-label="Observation report">
+      <div class="screen">
+        <section class="report-shell">
+          <header class="observation-topbar">
+            <div class="observation-context">
+              <button class="back-button" id="report-back-button" type="button" aria-label="Back to observation">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+              </button>
+              <h1 class="observation-context__title">Observation report</h1>
+              <button class="home-button" id="report-home-button" type="button" aria-label="Go to homepage">
+                <i class="fa-solid fa-house" aria-hidden="true"></i>
+              </button>
+            </div>
+          </header>
+
+          <section class="report-content" id="report-content" aria-live="polite"></section>
+
+          <details class="report-notes report-card" aria-labelledby="report-notes-title">
+            <summary class="report-notes__summary">
+              <h2 id="report-notes-title">Additional report details</h2>
+              <span class="report-notes__chevrons" aria-hidden="true">
+                <i class="fa-solid fa-chevron-down report-notes__chevron report-notes__chevron--down"></i>
+                <i class="fa-solid fa-chevron-up report-notes__chevron report-notes__chevron--up"></i>
+              </span>
+            </summary>
+            <div class="report-notes__grid">
+              <label class="report-field" for="report-observer-name">
+                <span>Observer&apos;s name</span>
+                <input id="report-observer-name" name="observerName" type="text" autocomplete="name">
+              </label>
+
+              <label class="report-field" for="report-observation-time">
+                <span>Time of observation</span>
+                <input id="report-observation-time" name="observationTime" type="text" autocomplete="off">
+              </label>
+
+              <label class="report-field report-field--full" for="report-extra-evidence">
+                <span>Extra evidence supporting this observation?</span>
+                <textarea id="report-extra-evidence" name="extraEvidence" rows="3"></textarea>
+              </label>
+
+              <label class="report-field report-field--full" for="report-support-learning">
+                <span>How can you further support this learning?</span>
+                <textarea id="report-support-learning" name="supportLearning" rows="3"></textarea>
+              </label>
+            </div>
+          </details>
+
+          <footer class="report-actions">
+            <button class="report-action-button" id="report-save-pdf-button" type="button">
+              <i class="fa-regular fa-file-pdf" aria-hidden="true"></i>
+              <span>Save to PDF</span>
+            </button>
+            <button class="report-action-button report-action-button--secondary" id="report-print-button" type="button">
+              <i class="fa-solid fa-print" aria-hidden="true"></i>
+              <span>Print this report</span>
+            </button>
+          </footer>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>

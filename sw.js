@@ -1,9 +1,10 @@
-const APP_CACHE = "klpt-app-v2";
-const RUNTIME_CACHE = "klpt-runtime-v2";
+const APP_CACHE = "klpt-app-v3";
+const RUNTIME_CACHE = "klpt-runtime-v3";
 const APP_ASSETS = [
   "./",
   "index.html",
   "observation.html",
+  "report.html",
   "styles.css",
   "script.js",
   "manifest.webmanifest",
@@ -75,7 +76,9 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    const fallbackPage = url.pathname.includes("observation") ? "observation.html" : "index.html";
+    const fallbackPage = url.pathname.includes("observation")
+      ? "observation.html"
+      : (url.pathname.includes("report") ? "report.html" : "index.html");
     event.respondWith(networkFirst(request, fallbackPage));
     return;
   }

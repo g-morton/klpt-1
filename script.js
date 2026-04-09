@@ -7,6 +7,7 @@ const DRAFT_DOMAIN_KEY = "klpt-draft-domain";
 const DRAFT_SUBDOMAIN_KEY = "klpt-draft-subdomain";
 const DRAFT_ELEMENT_KEY = "klpt-draft-element";
 const DRAFT_BEHAVIOUR_KEY = "klpt-draft-behaviour";
+const REPORT_NOTES_KEY = "klpt-report-notes";
 const DEFAULT_STEP_ID = "domains";
 const DOMAINS_DATA_PATH = "assets/data/domains.json";
 const NAVIGATION_DATA_PATH = "assets/data/navigation.json";
@@ -946,6 +947,97 @@ function readDraftElementIds() {
   }
 }
 
+function toFriendlyDateTimeValue(date) {
+  const value = date instanceof Date ? date : new Date();
+  if (Number.isNaN(value.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(value);
+}
+
+function toFriendlyObservationTime(value) {
+  if (!value) {
+    return toFriendlyDateTimeValue(new Date());
+  }
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return toFriendlyDateTimeValue(parsed);
+  }
+  return String(value);
+}
+
+function readReportNotesStore() {
+  try {
+    const raw = localStorage.getItem(REPORT_NOTES_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function writeReportNotesStore(store) {
+  localStorage.setItem(REPORT_NOTES_KEY, JSON.stringify(store));
+}
+
+function reportNotesStorageKey(journeyId) {
+  return journeyId || "__draft__";
+}
+
+function normaliseReportNotes(value) {
+  const safe = value && typeof value === "object" ? value : {};
+  return {
+    observerName: typeof safe.observerName === "string" ? safe.observerName : "",
+    observationTime: typeof safe.observationTime === "string" ? safe.observationTime : "",
+    extraEvidence: typeof safe.extraEvidence === "string" ? safe.extraEvidence : "",
+    supportLearning: typeof safe.supportLearning === "string" ? safe.supportLearning : ""
+  };
+}
+
+function getStoredReportNotes(journeyId) {
+  const store = readReportNotesStore();
+  const key = reportNotesStorageKey(journeyId);
+  return normaliseReportNotes(store[key]);
+}
+
+function saveStoredReportNotes(journeyId, notes) {
+  const store = readReportNotesStore();
+  const key = reportNotesStorageKey(journeyId);
+  store[key] = normaliseReportNotes(notes);
+  writeReportNotesStore(store);
+}
+
+function buildStateFromDraft() {
+  const behaviourState = readDraftBehaviourState();
+  const elementIds = readDraftElementIds();
+  const behaviourId = behaviourState.ids[0] || "";
+  return {
+    currentStep: normaliseStepId(localStorage.getItem(STEP_STORAGE_KEY) || "behaviours"),
+    layer: "behaviours",
+    childName: (localStorage.getItem(DRAFT_CHILD_NAME_KEY) || "").trim(),
+    lastSelection: null,
+    selection: {
+      domainId: localStorage.getItem(DRAFT_DOMAIN_KEY) || "",
+      subDomainId: localStorage.getItem(DRAFT_SUBDOMAIN_KEY) || "",
+      elementId: elementIds[0] || "",
+      elementIds,
+      behaviourId,
+      behaviourByElement: behaviourState.byElement || {},
+      behaviourIds: behaviourState.ids || []
+    }
+  };
+}
+
 function getActiveJourneyId() {
   return localStorage.getItem(ACTIVE_JOURNEY_KEY) || "";
 }
@@ -1061,6 +1153,34 @@ function resolveResumeStepId(state) {
   return normaliseStepId(state.currentStep || DEFAULT_STEP_ID);
 }
 
+function isReportAvailable(state) {
+  if (!state || !state.selection) {
+    return false;
+  }
+  const elementIds = Array.isArray(state.selection.elementIds)
+    ? state.selection.elementIds.filter((id) => typeof id === "string" && id)
+    : [];
+  if (!elementIds.length) {
+    return false;
+  }
+
+  const behaviourByElement = state.selection.behaviourByElement && typeof state.selection.behaviourByElement === "object"
+    ? state.selection.behaviourByElement
+    : {};
+  const hasMappedBehaviourPerElement = elementIds.every((elementId) => {
+    const behaviourId = behaviourByElement[elementId];
+    return typeof behaviourId === "string" && behaviourId;
+  });
+  if (hasMappedBehaviourPerElement) {
+    return true;
+  }
+
+  const behaviourIds = Array.isArray(state.selection.behaviourIds)
+    ? state.selection.behaviourIds.filter((id) => typeof id === "string" && id)
+    : [];
+  return behaviourIds.length >= elementIds.length;
+}
+
 function openJourneySession(journeyId) {
   if (!journeyId) {
     window.location.href = "observation.html";
@@ -1077,6 +1197,11 @@ function openJourneySession(journeyId) {
   const state = restoreDraftFromJourney(journey);
   const stepId = resolveResumeStepId(state);
   setActiveJourneyId(journeyId);
+  if (isReportAvailable(state)) {
+    localStorage.setItem(STEP_STORAGE_KEY, "review");
+    window.location.href = "report.html";
+    return;
+  }
   localStorage.setItem(STEP_STORAGE_KEY, stepId);
   window.location.href = `observation.html?step=${encodeURIComponent(stepId)}`;
 }
@@ -1690,10 +1815,9 @@ function goToNextLayer() {
       return;
     }
 
-    setActiveStep("statement");
+    setActiveStep("review");
     upsertActiveJourney();
-    renderStepper();
-    renderHelpTip();
+    window.location.href = "report.html";
   }
 }
 
@@ -1928,6 +2052,226 @@ function bindObservationActions() {
   }
 }
 
+function findSelectedContext(domains, state) {
+  const selection = state?.selection || {};
+  const domain = domains.find((item) => item.id === selection.domainId) || null;
+  const hasSubDomains = Array.isArray(domain?.subDomains) && domain.subDomains.length > 0;
+  const subDomain = hasSubDomains
+    ? (domain.subDomains.find((item) => item.id === selection.subDomainId) || null)
+    : null;
+  const elementPool = hasSubDomains
+    ? (Array.isArray(subDomain?.elements) ? subDomain.elements : [])
+    : (Array.isArray(domain?.elements) ? domain.elements : []);
+  const elementIds = Array.isArray(selection.elementIds)
+    ? selection.elementIds
+    : (selection.elementId ? [selection.elementId] : []);
+  const selectedElements = elementIds
+    .map((id) => elementPool.find((element) => element.id === id))
+    .filter((element) => Boolean(element));
+  return {
+    domain,
+    subDomain,
+    selectedElements
+  };
+}
+
+function likelyProgressionText(behaviours, selectedIndex) {
+  if (selectedIndex < 0 || selectedIndex >= behaviours.length) {
+    return "A likely progression path could not be determined for this selection.";
+  }
+  const current = behaviours[selectedIndex];
+  const next = behaviours[selectedIndex + 1];
+  if (!next) {
+    return `This sits at the most advanced progression currently listed, showing strong development in ${current.name.toLowerCase()}.`;
+  }
+  const nextSentence = firstSentence(next.description);
+  if (!nextSentence) {
+    return `A likely next progression is moving from ${current.name} toward ${next.name}.`;
+  }
+  return `A likely next progression is ${next.name}. Children at this stage often ${nextSentence.charAt(0).toLowerCase()}${nextSentence.slice(1)}`;
+}
+
+function createReportCard(title, lines, className = "") {
+  const card = document.createElement("article");
+  card.className = `report-card${className ? ` ${className}` : ""}`;
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  card.append(heading);
+  for (const line of lines) {
+    if (!line) {
+      continue;
+    }
+    const paragraph = document.createElement("p");
+    paragraph.textContent = line;
+    card.append(paragraph);
+  }
+  return card;
+}
+
+function joinReadableList(values) {
+  const items = (Array.isArray(values) ? values : [])
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+  if (!items.length) {
+    return "";
+  }
+  if (items.length === 1) {
+    return items[0];
+  }
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`;
+  }
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function collectReportTracks(context, state) {
+  const behaviourByElement = state.selection.behaviourByElement || {};
+  const fallbackBehaviourId = state.selection.behaviourId || "";
+  return context.selectedElements.map((element) => {
+    const behaviours = Array.isArray(element.behaviours) ? element.behaviours : [];
+    const selectedBehaviourId = behaviourByElement[element.id] || fallbackBehaviourId;
+    const selectedIndex = behaviours.findIndex((item) => item.id === selectedBehaviourId);
+    const selectedBehaviour = selectedIndex >= 0 ? behaviours[selectedIndex] : null;
+    return {
+      element,
+      behaviours,
+      selectedBehaviour,
+      selectedIndex
+    };
+  });
+}
+
+function initReportNotesForm(journeyId) {
+  const observerNameInput = document.getElementById("report-observer-name");
+  const observationTimeInput = document.getElementById("report-observation-time");
+  const extraEvidenceInput = document.getElementById("report-extra-evidence");
+  const supportLearningInput = document.getElementById("report-support-learning");
+  if (!observerNameInput || !observationTimeInput || !extraEvidenceInput || !supportLearningInput) {
+    return;
+  }
+
+  const stored = getStoredReportNotes(journeyId);
+  const initial = {
+    observerName: stored.observerName || "",
+    observationTime: toFriendlyObservationTime(stored.observationTime),
+    extraEvidence: stored.extraEvidence || "",
+    supportLearning: stored.supportLearning || ""
+  };
+
+  observerNameInput.value = initial.observerName;
+  observationTimeInput.value = initial.observationTime;
+  extraEvidenceInput.value = initial.extraEvidence;
+  supportLearningInput.value = initial.supportLearning;
+
+  saveStoredReportNotes(journeyId, initial);
+
+  const persist = () => {
+    saveStoredReportNotes(journeyId, {
+      observerName: observerNameInput.value.trim(),
+      observationTime: toFriendlyObservationTime(observationTimeInput.value.trim()),
+      extraEvidence: extraEvidenceInput.value.trim(),
+      supportLearning: supportLearningInput.value.trim()
+    });
+    observationTimeInput.value = toFriendlyObservationTime(observationTimeInput.value.trim());
+  };
+
+  observerNameInput.addEventListener("input", persist);
+  observationTimeInput.addEventListener("change", persist);
+  observationTimeInput.addEventListener("blur", persist);
+  extraEvidenceInput.addEventListener("input", persist);
+  supportLearningInput.addEventListener("input", persist);
+}
+
+async function initReportPage() {
+  const content = document.getElementById("report-content");
+  if (!content) {
+    return;
+  }
+
+  const backButton = document.getElementById("report-back-button");
+  if (backButton) {
+    backButton.addEventListener("click", () => {
+      window.location.href = "observation.html?step=behaviours";
+    });
+  }
+
+  const homeButton = document.getElementById("report-home-button");
+  if (homeButton) {
+    homeButton.addEventListener("click", () => {
+      window.location.href = "index.html";
+    });
+  }
+
+  const savePdfButton = document.getElementById("report-save-pdf-button");
+  if (savePdfButton) {
+    savePdfButton.addEventListener("click", () => {
+      window.print();
+    });
+  }
+
+  const printButton = document.getElementById("report-print-button");
+  if (printButton) {
+    printButton.addEventListener("click", () => {
+      window.print();
+    });
+  }
+
+  let domains = [];
+  try {
+    const response = await fetch(DOMAINS_DATA_PATH);
+    if (response.ok) {
+      const data = await response.json();
+      domains = Array.isArray(data?.domains) ? data.domains : [];
+    }
+  } catch (error) {
+    console.warn("Unable to load domains for report:", error);
+  }
+
+  const activeJourneyId = getActiveJourneyId();
+  const activeJourney = readJourneys().find((journey) => journey.id === activeJourneyId);
+  const state = activeJourney ? getJourneyState(activeJourney) : buildStateFromDraft();
+  initReportNotesForm(activeJourneyId);
+  const context = findSelectedContext(domains, state);
+  const childName = state.childName || "this child";
+  const tracks = collectReportTracks(context, state);
+  const elementNames = tracks.map((track) => track.element.name);
+  const behaviourNames = tracks
+    .map((track) => track.selectedBehaviour?.name || "")
+    .filter(Boolean);
+  const domainText = context.domain?.name ? ` in ${context.domain.name}` : "";
+  const subDomainText = context.subDomain?.name ? `, with a focus on ${context.subDomain.name}` : "";
+  const overviewLine = tracks.length
+    ? `You recorded an observation for ${childName}${domainText}${subDomainText}, focusing on ${joinReadableList(elementNames)}.`
+    : `You recorded an observation for ${childName}${domainText}${subDomainText}.`;
+  const behaviourLine = behaviourNames.length
+    ? `Across the journey, the observed behaviours were ${joinReadableList(behaviourNames)}.`
+    : "No behaviours have been selected yet for this journey.";
+  const detailsLines = tracks.length
+    ? tracks.map((track) => {
+      if (!track.selectedBehaviour) {
+        return `${track.element.name}: no behaviour was selected in the saved journey.`;
+      }
+      return `${track.element.name}: ${track.selectedBehaviour.name}. ${stripHtml(track.selectedBehaviour.description || "")}`;
+    })
+    : [
+      "This report does not yet include selected elements and behaviours.",
+      "Return to the observation flow and complete behaviour selections to generate a full summary."
+    ];
+  const progressionLines = tracks.length
+    ? tracks.map((track) =>
+      `${track.element.name}: ${likelyProgressionText(track.behaviours, track.selectedIndex)}`
+    )
+    : ["Progression ideas will appear once element and behaviour selections are available."];
+
+  const cards = [
+    createReportCard("What you observed", [overviewLine, behaviourLine]),
+    createReportCard("Detailed breakdown", detailsLines),
+    createReportCard("Progression ideas", progressionLines, "report-card--progression")
+  ];
+
+  content.replaceChildren(...cards);
+}
+
 if (document.body.dataset.page === "home") {
   setActiveStep(document.body.dataset.step || DEFAULT_STEP_ID);
   renderSessions();
@@ -1940,6 +2284,11 @@ if (document.body.dataset.page === "observation") {
   bindObservationDraft();
   bindObservationActions();
   initObservationFlow();
+}
+
+if (document.body.dataset.page === "report") {
+  setActiveStep("review");
+  initReportPage();
 }
 
 renderHelpTip();
