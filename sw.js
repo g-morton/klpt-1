@@ -5,6 +5,7 @@ const APP_ASSETS = [
   "index.html",
   "observation.html",
   "report.html",
+  "robots.txt",
   "styles.css",
   "script.js",
   "manifest.webmanifest",
